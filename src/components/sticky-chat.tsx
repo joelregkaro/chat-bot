@@ -37,9 +37,52 @@ export default function StickyChat() {
   // Handle payment link click
   const handlePaymentClick = () => {
     if (paymentLink) {
-      // Open Razorpay popup
-      window.open(paymentLink, "_blank");
+      // Create a modal iframe for the Razorpay payment
+      // This keeps the payment within the app instead of opening a new tab
+      const paymentDiv = document.createElement('div');
+      paymentDiv.style.position = 'fixed';
+      paymentDiv.style.top = '0';
+      paymentDiv.style.left = '0';
+      paymentDiv.style.width = '100%';
+      paymentDiv.style.height = '100%';
+      paymentDiv.style.backgroundColor = 'rgba(0,0,0,0.7)';
+      paymentDiv.style.zIndex = '10000';
+      paymentDiv.style.display = 'flex';
+      paymentDiv.style.alignItems = 'center';
+      paymentDiv.style.justifyContent = 'center';
+      
+      // Create close button
+      const closeButton = document.createElement('button');
+      closeButton.innerText = 'Close';
+      closeButton.style.position = 'absolute';
+      closeButton.style.top = '20px';
+      closeButton.style.right = '20px';
+      closeButton.style.padding = '8px 16px';
+      closeButton.style.backgroundColor = '#fff';
+      closeButton.style.border = 'none';
+      closeButton.style.borderRadius = '4px';
+      closeButton.style.cursor = 'pointer';
+      closeButton.onclick = () => document.body.removeChild(paymentDiv);
+      
+      // Create iframe for payment
+      const iframe = document.createElement('iframe');
+      iframe.src = paymentLink;
+      iframe.style.width = '90%';
+      iframe.style.height = '90%';
+      iframe.style.border = 'none';
+      iframe.style.borderRadius = '8px';
+      iframe.style.backgroundColor = 'white';
+      
+      // Add elements to DOM
+      paymentDiv.appendChild(iframe);
+      paymentDiv.appendChild(closeButton);
+      document.body.appendChild(paymentDiv);
+      
+      // Notify the agent
       sendChatMessage("I'm proceeding to make the payment now.");
+      
+      // Close the payment popup overlay
+      closePaymentPopup();
     }
   };
 

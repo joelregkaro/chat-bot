@@ -23,7 +23,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected' | 'error'>('disconnected');
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
   const [showPaymentPopup, setShowPaymentPopup] = useState(false);
+  // Start with loading false - only set to true when a message is actively being sent/received
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Track whether we've had at least one successful message exchange
+  const hasReceivedMessages = React.useRef(false);
 
   // Format timestamp for messages
   const formatTime = () => {
@@ -52,7 +56,33 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     
     console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] Received message type=${data.type}, preview="${preview}..."`);
 
+    // Handle typing indicators
+    if (data.type === 'typing_indicator') {
+      console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] Received typing indicator - keeping loading active`);
+      
+      // Only show typing indicator if we've already established a connection and received messages
+      if (hasReceivedMessages.current) {
+        setIsLoading(true);
+      } else {
+        console.log(`[CHAT_CONTEXT:${contextId.current}] Ignoring typing indicator - no messages yet`);
+      }
+      return;
+    }
+    
+    // Handle typing ended message
+    if (data.type === 'typing_ended') {
+      console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] Received typing ended - clearing loading state`);
+      setIsLoading(false);
+      return;
+    }
+    
     if (data.type === 'message' || data.type === 'follow_up') {
+      // Mark that we've successfully received a message from the server
+      if (!hasReceivedMessages.current) {
+        hasReceivedMessages.current = true;
+        console.log(`[CHAT_CONTEXT:${contextId.current}] First message received from server - connection confirmed`);
+      }
+      
       if (data.text) {
         // Create a local variable with a definite type to fix the TypeScript error
         const messageText: string = data.text;

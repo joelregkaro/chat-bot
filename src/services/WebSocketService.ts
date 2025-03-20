@@ -8,7 +8,7 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001'
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 const WS_URL = process.env.REACT_APP_WS_URL || `${WS_PROTOCOL}//${BACKEND_URL.replace(/^https?:\/\//, '')}/ws`;
 
-export type MessageType = 'message' | 'follow_up' | 'payment_link' | 'show_document_upload' | 'session_info' | 'set_cookie';
+export type MessageType = 'message' | 'follow_up' | 'payment_link' | 'show_document_upload' | 'session_info' | 'set_cookie' | 'typing_indicator' | 'typing_ended';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -116,8 +116,38 @@ class WebSocketService {
       device_id: this.deviceId
     };
 
+    // Send the actual message
     this.socket?.send(JSON.stringify(message));
+    
+    // Log this outgoing message
+    console.log(`[WEBSOCKET:SEND] Sent message: "${text.substring(0, 30)}..."`);
+    
+    // Clear any existing typing indicator timeout
+    if (this.typingIndicatorTimeout) {
+      clearTimeout(this.typingIndicatorTimeout);
+    }
+    
+    // Setup a safety timeout to clear typing indicator if no response comes
+    this.typingIndicatorTimeout = setTimeout(() => {
+      console.log(`[WEBSOCKET:SAFETY] No response in 15 seconds, sending end-typing indicator`);
+      this.notifyTypingEnded();
+    }, 15000);
   }
+  
+  /**
+   * Send end-typing event to clear the typing indicator
+   */
+  private notifyTypingEnded(): void {
+    const endTypingMsg = {
+      type: 'typing_ended'
+    };
+    
+    // Notify all handlers that typing has ended
+    this.messageHandlers.forEach(handler => handler(endTypingMsg as WebSocketResponse));
+  }
+  
+  // Timeout reference to manage typing indicators
+  private typingIndicatorTimeout: NodeJS.Timeout | null = null;
 
   /**
    * Notify the server of user inactivity
@@ -282,6 +312,18 @@ class WebSocketService {
       // Keep track of which handler processed this message
       const processedHandlers: string[] = [];
       
+      // If this is a message that might be followed by more content, trigger typing indicator
+      if ((data.type === 'message' || data.type === 'follow_up') && data.text) {
+        // Emit a typing indicator after a very short delay so it appears after the actual message
+        setTimeout(() => {
+          // Signal to UI that agent is still thinking/typing
+          this.messageHandlers.forEach(handler => handler({
+            type: 'typing_indicator',
+            messageId: `typing-${Date.now()}`
+          }));
+        }, 10);
+      }
+
       this.messageHandlers.forEach((handler, index) => {
         // Generate a handler fingerprint for tracking
         const handlerFingerprint = handler.toString().substring(0, 50);
