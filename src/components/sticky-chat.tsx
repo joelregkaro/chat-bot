@@ -5,6 +5,31 @@ import { Send, User, Bot, Sparkles, Clock, X, CreditCard, Loader2 } from "lucide
 import caImage from "../assets/heroImg.png"
 import { useChat } from "../contexts/ChatContext";
 
+// Declare Razorpay type for TypeScript
+interface RazorpayOptions {
+  key: string;
+  order_id: string;
+  name: string;
+  description: string;
+  image?: string;
+  prefill?: {
+    name?: string;
+    email?: string;
+    contact?: string;
+  };
+  theme?: {
+    color: string;
+  };
+  modal?: {
+    ondismiss: () => void;
+  };
+}
+
+interface RazorpayInstance {
+  open: () => void;
+  on: (event: string, callback: (response: any) => void) => void;
+}
+
 declare global {
   interface Window {
     Razorpay: any;
@@ -25,7 +50,9 @@ export default function StickyChat({ onClose }: StickyChatProps) {
     paymentLink,
     showPaymentPopup,
     closePaymentPopup,
-    isLoading
+    isLoading,
+    hasCompletedPayment,
+    markPaymentCompleted
   } = useChat();
 
   const scrollToBottom = () => {
@@ -75,12 +102,35 @@ export default function StickyChat({ onClose }: StickyChatProps) {
     try {
       console.log("Opening Razorpay checkout with link:", paymentLink);
       
-      // Extract order_id from the payment link
+      // Extract order information from the payment link
       const url = new URL(paymentLink);
-      const orderId = url.searchParams.get('order_id');
+      
+      // Properly handle various Razorpay URL formats
+      let orderId: string | null = null;
+      
+      // First try standard query param approach
+      orderId = url.searchParams.get('order_id');
+      
+      // If that fails, try extracting from the path (format: https://rzp.io/l/RegisterKaro-pay_12345)
+      if (!orderId && url.pathname.includes('/l/RegisterKaro-')) {
+        const pathParts = url.pathname.split('/l/RegisterKaro-');
+        if (pathParts.length > 1) {
+          orderId = pathParts[1];
+          console.log(`Extracted order ID from path: ${orderId}`);
+        }
+      }
+      
+      // If still no order ID, use the entire path as a fallback
+      if (!orderId && url.pathname.includes('/l/')) {
+        const pathParts = url.pathname.split('/l/');
+        if (pathParts.length > 1) {
+          orderId = pathParts[1];
+          console.log(`Using path as order ID: ${orderId}`);
+        }
+      }
       
       if (!orderId) {
-        console.error("Failed to extract order_id from payment link");
+        console.error("Failed to extract order_id from payment link:", paymentLink);
         // Fallback to iframe approach if order_id extraction fails
         openPaymentIframe(paymentLink);
         return;
@@ -95,7 +145,7 @@ export default function StickyChat({ onClose }: StickyChatProps) {
         
         script.onload = () => {
           console.log("Razorpay script loaded, initializing checkout");
-          initializeRazorpay(orderId, paymentLink);
+          initializeRazorpay(orderId as string, paymentLink);
         };
         
         script.onerror = () => {
@@ -115,6 +165,13 @@ export default function StickyChat({ onClose }: StickyChatProps) {
   
   // Initialize Razorpay with the extracted order ID
   const initializeRazorpay = (orderId: string, fallbackLink: string) => {
+    // If payment already completed, don't show new payment form
+    if (hasCompletedPayment) {
+      console.log('Payment already completed, not showing Razorpay checkout');
+      sendChatMessage("Our records show you've already completed payment. If you need assistance with anything else, please let me know.");
+      return;
+    }
+    
     try {
       // Configure Razorpay options
       const options = {
@@ -139,6 +196,7 @@ export default function StickyChat({ onClose }: StickyChatProps) {
         },
         handler: function() {
           console.log('Payment potentially successful - will verify with backend');
+          markPaymentCompleted(); // Mark payment as completed for future reference
           sendChatMessage("Great! I'm verifying your payment. This should just take a moment...");
         }
       };
