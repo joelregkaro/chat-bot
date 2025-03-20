@@ -34,9 +34,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   // Track previously seen message IDs to avoid duplicates
   const [lastMessageIds, setLastMessageIds] = useState<string[]>([]);
 
+  // Create an instance ID for this ChatContext for tracking duplicates
+  const contextId = React.useRef(`context_${Date.now()}_${Math.random().toString(36).substring(2,7)}`);
+  
   // Handle incoming messages from WebSocket
   const handleWebSocketMessage = (data: WebSocketResponse) => {
     const time = formatTime();
+    const handlerTimeId = Date.now();
+    
+    // Generate a simple message preview for logs
+    const preview = data.text
+      ? data.text.substring(0, 30).replace(/\s+/g, ' ')
+      : '[no text]';
+    
+    console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] Received message type=${data.type}, preview="${preview}..."`);
 
     if (data.type === 'message' || data.type === 'follow_up') {
       if (data.text) {
@@ -44,7 +55,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         const messageText: string = data.text;
         
         // Use the message ID from WebSocketService if available, or generate one
-        const messageId = data.messageId || `${Date.now()}-${messageText.substring(0, 20)}`;
+        const messageId = data.messageId || `${handlerTimeId}-${messageText.substring(0, 20)}`;
+        
+        console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] Processing message with ID=${messageId}`);
+        console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] Known message IDs: ${lastMessageIds.length}`);
         
         // Skip welcome/greeting messages if we already have some messages
         const isGreeting = messageText.includes("Hello!") ||
@@ -53,12 +67,31 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         
         const shouldSkipGreeting = isGreeting && messages.length > 0;
         
+        if (isGreeting) {
+          console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] GREETING DETECTED, shouldSkip=${shouldSkipGreeting}`);
+        }
+        
+        // Check if we've seen this message before
+        const isDuplicate = lastMessageIds.includes(messageId);
+        if (isDuplicate) {
+          console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] DUPLICATE MESSAGE DETECTED: "${preview}..."`);
+        }
+        
         // Only add the message if we haven't seen it recently and it's not a duplicate greeting
-        if (!lastMessageIds.includes(messageId) && !shouldSkipGreeting) {
-          setMessages((prev) => [
-            ...prev,
-            { role: 'assistant', content: messageText, time }
-          ]);
+        if (!isDuplicate && !shouldSkipGreeting) {
+          console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] ADDING MESSAGE to chat history`);
+          
+          setMessages((prev) => {
+            // Final duplication check on the setState callback
+            const lastMsg = prev[prev.length - 1];
+            if (lastMsg && lastMsg.content === messageText) {
+              console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] CAUGHT DUPLICATE in setState`);
+              return prev; // Don't add duplicate
+            }
+            
+            // Add the message
+            return [...prev, { role: 'assistant', content: messageText, time }];
+          });
           
           // Keep track of the last few message IDs (limit to 15)
           setLastMessageIds(prev => {
@@ -66,7 +99,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             return updated.slice(-15); // Keep the last 15
           });
         } else {
-          console.log("Filtered out duplicate or welcome message:", messageText.substring(0, 30));
+          console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] FILTERED OUT message: isDuplicate=${isDuplicate}, isGreeting=${isGreeting}`);
         }
       }
       setIsLoading(false);
@@ -85,16 +118,34 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     }
   };
 
+  // Keep stable references to handlers to prevent duplicate registrations
+  const handlerRefs = React.useRef({
+    message: handleWebSocketMessage,
+    status: handleConnectionStatus
+  });
+  
   // Initialize WebSocket connection
   useEffect(() => {
-    webSocketService.addMessageHandler(handleWebSocketMessage);
-    webSocketService.addStatusHandler(handleConnectionStatus);
+    console.log(`[CHAT_CONTEXT:${contextId.current}] INITIALIZING WebSocket handlers`);
+    
+    // Store references to the handlers to ensure proper cleanup
+    const msgHandler = handlerRefs.current.message;
+    const statusHandler = handlerRefs.current.status;
+    
+    webSocketService.addMessageHandler(msgHandler);
+    webSocketService.addStatusHandler(statusHandler);
     webSocketService.connect();
 
+    // Cleanup function
     return () => {
-      webSocketService.disconnect();
+      console.log(`[CHAT_CONTEXT:${contextId.current}] CLEANUP - Disconnecting WebSocket`);
+      
+      // Only disconnect if this is the only handler (to prevent breaking other components)
+      if (webSocketService.getMessageHandlerCount() <= 1) {
+        webSocketService.disconnect();
+      }
     };
-  }, []);
+  }, []); // Empty dependency array = only run once
 
   // Send message to WebSocket service
   const sendMessage = (text: string) => {
