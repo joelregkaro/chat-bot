@@ -18,13 +18,8 @@ interface ChatProviderProps {
 }
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: "assistant",
-      content: "👋 Hello! I'm your AI assistant. How can I help you with company registration today?",
-      time: "Just now"
-    }
-  ]);
+  // Initialize with empty messages array - greeting will come from backend
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected' | 'error'>('disconnected');
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
   const [showPaymentPopup, setShowPaymentPopup] = useState(false);
@@ -36,6 +31,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  // Track previously seen message IDs to avoid duplicates
+  const [lastMessageIds, setLastMessageIds] = useState<string[]>([]);
+
   // Handle incoming messages from WebSocket
   const handleWebSocketMessage = (data: WebSocketResponse) => {
     const time = formatTime();
@@ -44,10 +42,32 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       if (data.text) {
         // Create a local variable with a definite type to fix the TypeScript error
         const messageText: string = data.text;
-        setMessages((prev) => [
-          ...prev,
-          { role: 'assistant', content: messageText, time }
-        ]);
+        
+        // Use the message ID from WebSocketService if available, or generate one
+        const messageId = data.messageId || `${Date.now()}-${messageText.substring(0, 20)}`;
+        
+        // Skip welcome/greeting messages if we already have some messages
+        const isGreeting = messageText.includes("Hello!") ||
+                          messageText.includes("Welcome") ||
+                          messageText.includes("How can I help you");
+        
+        const shouldSkipGreeting = isGreeting && messages.length > 0;
+        
+        // Only add the message if we haven't seen it recently and it's not a duplicate greeting
+        if (!lastMessageIds.includes(messageId) && !shouldSkipGreeting) {
+          setMessages((prev) => [
+            ...prev,
+            { role: 'assistant', content: messageText, time }
+          ]);
+          
+          // Keep track of the last few message IDs (limit to 15)
+          setLastMessageIds(prev => {
+            const updated = [...prev, messageId];
+            return updated.slice(-15); // Keep the last 15
+          });
+        } else {
+          console.log("Filtered out duplicate or welcome message:", messageText.substring(0, 30));
+        }
       }
       setIsLoading(false);
     } else if (data.type === 'payment_link' && data.link) {

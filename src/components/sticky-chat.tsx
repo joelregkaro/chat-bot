@@ -153,27 +153,47 @@ export default function StickyChat() {
       
       {/* Quick action buttons */}
       <div className="p-1.5 border-t border-gray-100 flex overflow-x-auto gap-2 bg-gray-50">
-        <button 
+        <button
           onClick={() => sendChatMessage("Tell me about the registration process")}
-          className="px-3 py-1.5 text-xs bg-blue/10 text-blue rounded-full whitespace-nowrap hover:bg-blue/20 transition-colors"
+          className={`px-3 py-1.5 text-xs rounded-full whitespace-nowrap transition-colors ${
+            isLoading || connectionStatus !== 'connected'
+              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              : 'bg-blue/10 text-blue hover:bg-blue/20'
+          }`}
+          disabled={isLoading || connectionStatus !== 'connected'}
         >
           Registration Process
         </button>
-        <button 
+        <button
           onClick={() => sendChatMessage("What documents are required?")}
-          className="px-3 py-1.5 text-xs bg-blue/10 text-blue rounded-full whitespace-nowrap hover:bg-blue/20 transition-colors"
+          className={`px-3 py-1.5 text-xs rounded-full whitespace-nowrap transition-colors ${
+            isLoading || connectionStatus !== 'connected'
+              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              : 'bg-blue/10 text-blue hover:bg-blue/20'
+          }`}
+          disabled={isLoading || connectionStatus !== 'connected'}
         >
           Documents Required
         </button>
-        <button 
+        <button
           onClick={() => sendChatMessage("What are your pricing plans?")}
-          className="px-3 py-1.5 text-xs bg-blue/10 text-blue rounded-full whitespace-nowrap hover:bg-blue/20 transition-colors"
+          className={`px-3 py-1.5 text-xs rounded-full whitespace-nowrap transition-colors ${
+            isLoading || connectionStatus !== 'connected'
+              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              : 'bg-blue/10 text-blue hover:bg-blue/20'
+          }`}
+          disabled={isLoading || connectionStatus !== 'connected'}
         >
           Pricing Plans
         </button>
-        <button 
+        <button
           onClick={() => sendChatMessage("How long does the process take?")}
-          className="px-3 py-1.5 text-xs bg-blue/10 text-blue rounded-full whitespace-nowrap hover:bg-blue/20 transition-colors"
+          className={`px-3 py-1.5 text-xs rounded-full whitespace-nowrap transition-colors ${
+            isLoading || connectionStatus !== 'connected'
+              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              : 'bg-blue/10 text-blue hover:bg-blue/20'
+          }`}
+          disabled={isLoading || connectionStatus !== 'connected'}
         >
           Processing Time
         </button>

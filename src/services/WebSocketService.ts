@@ -25,6 +25,7 @@ export interface WebSocketResponse {
   cookie_id?: string;
   requires_cookie?: boolean;
   requires_device_id?: boolean;
+  messageId?: string; // Added to help with message deduplication
 }
 
 export type MessageHandler = (message: WebSocketResponse) => void;
@@ -97,10 +98,13 @@ class WebSocketService {
    * Send a message through the WebSocket
    */
   public sendMessage(text: string): void {
+    // If not connected, queue message and try to connect (if not already connecting)
     if (!this.isConnected) {
       console.log('WebSocket not connected, queueing message');
       this.pendingMessages.push({ type: 'message', text });
-      this.connect();
+      if (!this.isConnecting) {
+        this.connect();
+      }
       return;
     }
 
@@ -196,11 +200,19 @@ class WebSocketService {
 
       // Handle session info
       if (data.type === 'session_info' && data.session_id) {
+        // Only set session ID if it's different - prevent duplicate greetings
+        const isNewSession = this.sessionId !== data.session_id;
         this.sessionId = data.session_id;
         console.log(`Session ID set: ${this.sessionId}`);
         
         // Store in sessionStorage for persistence
         sessionStorage.setItem('chatSessionId', this.sessionId);
+        
+        // If this is a reconnection with the same session ID, we might not need
+        // to process all the default welcome messages that follow
+        if (!isNewSession) {
+          console.log('Reconnected with existing session - may filter welcome messages');
+        }
       }
 
       // Handle cookie setting
@@ -210,6 +222,12 @@ class WebSocketService {
         
         // Store in localStorage for persistence
         localStorage.setItem('registerKaroCookieId', this.cookieId);
+      }
+
+      // For actual messages, add a messageId property to help frontend deduplicate
+      if ((data.type === 'message' || data.type === 'follow_up') && data.text) {
+        // Adding timestamp to make message unique even with same content
+        data.messageId = `${Date.now()}-${data.text.substring(0, 20)}`;
       }
 
       // Notify all message handlers
