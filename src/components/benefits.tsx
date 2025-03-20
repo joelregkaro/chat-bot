@@ -32,7 +32,7 @@ export default function Benefits() {
   ]
 
   return (
-    <section className="py-16 bg-gradient-to-br from-white via-blue-50/30 to-orange-50/30 relative overflow-hidden">
+    <section className="py-16 bg-custom-gradient-page relative overflow-hidden">
       <div className="container mx-auto">
         <h2 className="text-3xl font-bold text-blue text-center mb-12">
           Benefits of Registering as a Private Limited Company in Delhi NCR

@@ -10,11 +10,12 @@ import RegistrationProcess from "./components/registration-process";
 import StickyChat from "./components/sticky-chat";
 import Testimonials from "./components/testimonials";
 import WhyChooseUs from "./components/why-choose-us";
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { MessageSquare, X } from 'lucide-react';
 
 const App = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const chatRef = useRef<HTMLDivElement>(null);
 
   // Add smooth scrolling effect for better user experience
   useEffect(() => {
@@ -42,6 +43,22 @@ const App = () => {
       });
     };
   }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (chatRef.current && !chatRef.current.contains(event.target as Node)) {
+        setMobileOpen(false);
+      }
+    };
+
+    if (mobileOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [mobileOpen]);
 
   return (
     <BrowserRouter>
@@ -87,18 +104,9 @@ const App = () => {
         {/* Mobile chat overlay */}
         {mobileOpen && (
           <div className="md:hidden fixed inset-0 bg-black/50 z-50 flex items-end">
-            <div className="bg-white w-full h-[80vh] rounded-t-xl overflow-hidden animate-slide-up-mobile">
-              <div className="flex justify-between items-center p-4 border-b">
-                <h3 className="font-medium text-blue">AI Assistant</h3>
-                <button 
-                  onClick={() => setMobileOpen(false)}
-                  className="text-darkgray p-1"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="h-full pb-16">
-                <StickyChat />
+            <div ref={chatRef} className="bg-white w-full h-[90vh] rounded-t-xl overflow-hidden animate-slide-up-mobile">
+              <div className="h-full">
+                <StickyChat onClose={() => setMobileOpen(false)} />
               </div>
             </div>
           </div>
@@ -109,26 +117,28 @@ const App = () => {
             <div id="hero" className="fade-in">
               <Hero />
             </div>
-            <div id="testimonials" className="fade-in">
-              <Testimonials />
-            </div>
-            <div id="documents" className="fade-in">
-              <DocumentsRequired />
-            </div>
-            <div id="process" className="fade-in">
-              <RegistrationProcess />
-            </div>
-            <div id="benefits" className="fade-in">
-              <Benefits />
-            </div>
-            <div id="pricing" className="fade-in">
-              <Pricing />
-            </div>
-            <div id="why-choose-us" className="fade-in">
-              <WhyChooseUs />
-            </div>
-            <div id="expert-assistance" className="fade-in">
-              <ExpertAssistance />
+            <div className="bg-gradient-to-br from-white via-blue-50/20 via-orange-50/20 to-purple-50/20">
+              <div id="testimonials" className="fade-in">
+                <Testimonials />
+              </div>
+              <div id="documents" className="fade-in">
+                <DocumentsRequired />
+              </div>
+              <div id="process" className="fade-in">
+                <RegistrationProcess />
+              </div>
+              <div id="benefits" className="fade-in">
+                <Benefits />
+              </div>
+              <div id="pricing" className="fade-in">
+                <Pricing />
+              </div>
+              <div id="why-choose-us" className="fade-in">
+                <WhyChooseUs />
+              </div>
+              <div id="expert-assistance" className="fade-in">
+                <ExpertAssistance />
+              </div>
             </div>
           </main>
           <aside className="hidden md:block md:w-[30%] fixed right-0 top-14 h-[calc(100vh-5rem)] p-4">

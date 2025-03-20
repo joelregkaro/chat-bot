@@ -1,9 +1,14 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { Send, User, Bot, Sparkles, Clock } from "lucide-react";
+import { Send, User, Bot, Sparkles, Clock, X } from "lucide-react";
+import caImage from "../assets/heroImg.png"
 
-export default function StickyChat() {
+interface StickyChatProps {
+  onClose?: () => void;
+}
+
+export default function StickyChat({ onClose }: StickyChatProps) {
   const [message, setMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [chatHistory, setChatHistory] = useState<{ sender: string; message: string; time: string }[]>([
@@ -54,8 +59,8 @@ export default function StickyChat() {
       {/* Chat header */}
       <div className="bg-blue text-white p-3 flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <div className="bg-white/20 p-2 rounded-full">
-            <Sparkles className="h-5 w-5" />
+          <div className=" rounded-full">
+            <img src={caImage} alt="CA Amit Aggrawal" className="h-10 w-10 rounded-full" />
           </div>
           <div>
             <h3 className="font-medium">CA Amit Aggrawal</h3>
@@ -65,6 +70,14 @@ export default function StickyChat() {
             </div>
           </div>
         </div>
+        {onClose && (
+          <button 
+            onClick={onClose}
+            className="p-1 hover:bg-white/10 rounded-full transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
       </div>
       
       {/* Chat messages */}

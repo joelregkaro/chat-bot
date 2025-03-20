@@ -23,6 +23,9 @@ module.exports = {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        'blue-900': '#1a365d',
+        'custom-blue': '#3F7CBA',
+        'custom-indigo': '#1C3854',
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
@@ -62,7 +65,10 @@ module.exports = {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ["Poppins", "Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+      },
+      fontSize: {
+        'hero-title': ['52px', '1.15'],
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -95,7 +101,9 @@ module.exports = {
         'card': '0 10px 30px rgba(0, 0, 0, 0.1)',
         'floating': '0 20px 50px rgba(0, 0, 0, 0.1)',
       },
+      
     },
+    
   },
   plugins: [require("tailwindcss-animate")],
 }

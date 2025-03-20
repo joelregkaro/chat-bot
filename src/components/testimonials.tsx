@@ -61,7 +61,7 @@ export default function Testimonials() {
   }, []);
 
   return (
-    <section className="py-16 bg-gradient-to-br from-white via-orange-50/30 to-blue-50/30 relative overflow-hidden">
+    <section className="py-16 bg-gradient-to-br from-light-orange via-blue-50/30 to-orange-50/30 relative overflow-hidden">
       {/* Floating avatars */}
       <div className="absolute -left-10 top-20 opacity-20 animate-pulse">
         <img
