@@ -8,6 +8,14 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001'
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 const WS_URL = process.env.REACT_APP_WS_URL || `${WS_PROTOCOL}//${BACKEND_URL.replace(/^https?:\/\//, '')}/ws`;
 
+// Create a unique tab ID that persists for this tab only
+// This ensures different browser tabs don't share sessions
+const TAB_ID = `tab_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+
+// Store tab ID in sessionStorage (only persists for current tab)
+sessionStorage.setItem('registerKaroTabId', TAB_ID);
+console.log(`Initialized unique tab ID: ${TAB_ID}`);
+
 export type MessageType = 'message' | 'follow_up' | 'payment_link' | 'show_document_upload' | 'session_info' | 'set_cookie' | 'typing_indicator' | 'typing_ended';
 
 export interface ChatMessage {
@@ -98,10 +106,13 @@ class WebSocketService {
    * Send a message through the WebSocket
    */
   public sendMessage(text: string): void {
+    // Get the tab ID to ensure messages are properly isolated to this tab
+    const tabId = sessionStorage.getItem('registerKaroTabId');
+    
     // If not connected, queue message and try to connect (if not already connecting)
     if (!this.isConnected) {
       console.log('WebSocket not connected, queueing message');
-      this.pendingMessages.push({ type: 'message', text });
+      this.pendingMessages.push({ type: 'message', text, tab_id: tabId });
       if (!this.isConnecting) {
         this.connect();
       }
@@ -113,14 +124,15 @@ class WebSocketService {
       text,
       session_id: this.sessionId,
       cookie_id: this.cookieId,
-      device_id: this.deviceId
+      device_id: this.deviceId,
+      tab_id: tabId // Include tab ID to maintain tab-specific conversation context
     };
 
     // Send the actual message
     this.socket?.send(JSON.stringify(message));
     
     // Log this outgoing message
-    console.log(`[WEBSOCKET:SEND] Sent message: "${text.substring(0, 30)}..."`);
+    console.log(`[WEBSOCKET:SEND] Sent message: "${text.substring(0, 30)}..." (tab: ${tabId})`);
     
     // Clear any existing typing indicator timeout
     if (this.typingIndicatorTimeout) {
@@ -283,8 +295,13 @@ class WebSocketService {
         this.cookieId = data.cookie_id;
         console.log(`Cookie ID set: ${this.cookieId}`);
         
-        // Store in localStorage for persistence
-        localStorage.setItem('registerKaroCookieId', this.cookieId);
+        // Store in localStorage for persistence with 90-day expiration
+        const cookieData = {
+          id: this.cookieId,
+          expires: Date.now() + (90 * 24 * 60 * 60 * 1000) // 90 days in milliseconds
+        };
+        localStorage.setItem('registerKaroCookieId', JSON.stringify(cookieData));
+        console.log(`Set cookie with 90-day expiration: ${this.cookieId}`);
       }
 
       // For actual messages, add a messageId property to help frontend deduplicate
@@ -312,18 +329,11 @@ class WebSocketService {
       // Keep track of which handler processed this message
       const processedHandlers: string[] = [];
       
-      // DISABLED: No longer sending typing indicators as they cause UI issues
-      // This prevents the unnecessary typing indicator that blocks the input field
-      /*
-      if ((data.type === 'message' || data.type === 'follow_up') && data.text) {
-        setTimeout(() => {
-          this.messageHandlers.forEach(handler => handler({
-            type: 'typing_indicator',
-            messageId: `typing-${Date.now()}`
-          }));
-        }, 10);
-      }
-      */
+      // DISABLED: Typing indicators after messages are rendered are no longer needed
+      // The loading indicator is set when a message is sent and cleared when response is received
+      
+      // If we decide to re-enable typing indicators in the future, they should only appear
+      // BEFORE a message is received, not after
 
       this.messageHandlers.forEach((handler, index) => {
         // Generate a handler fingerprint for tracking
@@ -430,17 +440,56 @@ class WebSocketService {
    * Send device information to the server
    */
   private sendDeviceInfo(): void {
-    // Try to get existing cookie ID
+    // Get the unique tab ID from sessionStorage to ensure tab isolation
+    const tabId = sessionStorage.getItem('registerKaroTabId') || `tab_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+    
+    // Always store/update tab ID in sessionStorage
+    sessionStorage.setItem('registerKaroTabId', tabId);
+    console.log(`Using tab ID: ${tabId} (session isolated to this browser tab)`);
+    
+    // Try to get existing cookie ID with expiration checking
     if (!this.cookieId) {
-      this.cookieId = localStorage.getItem('registerKaroCookieId');
-      console.log(`Using stored cookie ID: ${this.cookieId}`);
+      try {
+        const storedCookieData = localStorage.getItem('registerKaroCookieId');
+        if (storedCookieData) {
+          const cookieData = JSON.parse(storedCookieData);
+          
+          // Check if cookie is expired (90 days)
+          if (cookieData.expires && cookieData.expires > Date.now()) {
+            this.cookieId = cookieData.id;
+            console.log(`Using valid stored cookie ID: ${this.cookieId}, expires in ${Math.floor((cookieData.expires - Date.now()) / (24 * 60 * 60 * 1000))} days`);
+          } else {
+            console.log(`Cookie expired or invalid, generating new one`);
+            localStorage.removeItem('registerKaroCookieId');
+          }
+        } else {
+          console.log(`No stored cookie found`);
+        }
+      } catch (e) {
+        // Handle case of legacy cookie format or parsing error
+        const legacyCookie = localStorage.getItem('registerKaroCookieId');
+        if (typeof legacyCookie === 'string' && legacyCookie.length > 5) {
+          // Migrate old format to new format
+          this.cookieId = legacyCookie;
+          console.log(`Migrating legacy cookie format: ${this.cookieId}`);
+          
+          // Update to new format
+          const cookieData = {
+            id: this.cookieId,
+            expires: Date.now() + (90 * 24 * 60 * 60 * 1000) // 90 days
+          };
+          localStorage.setItem('registerKaroCookieId', JSON.stringify(cookieData));
+        } else {
+          console.log(`Invalid cookie data or parsing error, will generate new cookie`);
+        }
+      }
     }
 
-    // Try to get existing session ID
-    if (!this.sessionId) {
-      this.sessionId = sessionStorage.getItem('chatSessionId');
-      console.log(`Using stored session ID: ${this.sessionId}`);
-    }
+    // Generate new session ID for this tab rather than trying to reuse one
+    // This ensures each tab gets its own session and context
+    this.sessionId = `session_${tabId}`;
+    sessionStorage.setItem('chatSessionId', this.sessionId);
+    console.log(`Created new tab-isolated session ID: ${this.sessionId}`);
 
     // Generate or retrieve device ID
     if (!this.deviceId) {
@@ -454,44 +503,46 @@ class WebSocketService {
       console.log(`Using device ID: ${this.deviceId}`);
     }
 
+    // Reuse the already declared tabId variable
+    // No need to get it again since we already have it from earlier
+    
     // Send cookie ID if we have one
     if (this.cookieId) {
       this.socket?.send(JSON.stringify({
         type: 'cookie_id',
-        cookie_id: this.cookieId
+        cookie_id: this.cookieId,
+        tab_id: tabId
       }));
     }
 
     // Send device ID
     this.socket?.send(JSON.stringify({
       type: 'device_id',
-      device_id: this.deviceId
+      device_id: this.deviceId,
+      tab_id: tabId
     }));
 
-    // Send previous session ID if available
-    if (this.sessionId) {
-      this.socket?.send(JSON.stringify({
-        type: 'previous_session_id',
-        previous_session_id: this.sessionId
-      }));
-    }
+    // We no longer send previous session ID to ensure tab isolation
+    // Each tab gets its own fresh session
 
     // Send detailed client info for better tracking
     const clientInfo = {
-    device: {
-      device_id: this.deviceId,
-      platform: navigator.platform,
-      user_agent: navigator.userAgent.substring(0, 100), // Truncate to avoid too much data
-      screen_size: `${window.screen.width}x${window.screen.height}`,
-      language: navigator.language,
-      last_visit: new Date().toISOString()
-    }
+      device: {
+        device_id: this.deviceId,
+        tab_id: tabId,
+        platform: navigator.platform,
+        user_agent: navigator.userAgent.substring(0, 100), // Truncate to avoid too much data
+        screen_size: `${window.screen.width}x${window.screen.height}`,
+        language: navigator.language,
+        last_visit: new Date().toISOString()
+      }
     };
 
     this.socket?.send(JSON.stringify({
       type: 'client_info',
       client_info: clientInfo,
-      cookie_id: this.cookieId
+      cookie_id: this.cookieId,
+      tab_id: tabId
     }));
   }
 }
