@@ -312,17 +312,18 @@ class WebSocketService {
       // Keep track of which handler processed this message
       const processedHandlers: string[] = [];
       
-      // If this is a message that might be followed by more content, trigger typing indicator
+      // DISABLED: No longer sending typing indicators as they cause UI issues
+      // This prevents the unnecessary typing indicator that blocks the input field
+      /*
       if ((data.type === 'message' || data.type === 'follow_up') && data.text) {
-        // Emit a typing indicator after a very short delay so it appears after the actual message
         setTimeout(() => {
-          // Signal to UI that agent is still thinking/typing
           this.messageHandlers.forEach(handler => handler({
             type: 'typing_indicator',
             messageId: `typing-${Date.now()}`
           }));
         }, 10);
       }
+      */
 
       this.messageHandlers.forEach((handler, index) => {
         // Generate a handler fingerprint for tracking
