@@ -1,18 +1,21 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { Send, User, Bot, Sparkles, Clock } from "lucide-react";
+import { Send, User, Bot, Sparkles, Clock, X, CreditCard, Loader2 } from "lucide-react";
+import { useChat } from "../contexts/ChatContext";
 
 export default function StickyChat() {
   const [message, setMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [chatHistory, setChatHistory] = useState<{ sender: string; message: string; time: string }[]>([
-    { 
-      sender: "bot", 
-      message: "👋 Hello! I'm your AI assistant. How can I help you with company registration today?", 
-      time: "Just now" 
-    }
-  ]);
+  const {
+    messages,
+    sendMessage: sendChatMessage,
+    connectionStatus,
+    paymentLink,
+    showPaymentPopup,
+    closePaymentPopup,
+    isLoading
+  } = useChat();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -20,33 +23,24 @@ export default function StickyChat() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [chatHistory]);
+  }, [messages]);
 
   const handleSendMessage = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!message.trim()) return;
 
-    // Add user message to chat
-    const now = new Date();
-    const time = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
-    
-    setChatHistory([
-      ...chatHistory,
-      { sender: "user", message, time }
-    ]);
+    // Send message via chat context
+    sendChatMessage(message);
     setMessage("");
+  };
 
-    // Simulate bot response after a delay
-    setTimeout(() => {
-      setChatHistory(prev => [
-        ...prev,
-        { 
-          sender: "bot", 
-          message: "I'll help you with that! For company registration in Delhi NCR, you'll need identity proof, address proof, and business registration documents. Would you like more information on any specific part of the process?", 
-          time 
-        }
-      ]);
-    }, 1000);
+  // Handle payment link click
+  const handlePaymentClick = () => {
+    if (paymentLink) {
+      // Open Razorpay popup
+      window.open(paymentLink, "_blank");
+      sendChatMessage("I'm proceeding to make the payment now.");
+    }
   };
 
   return (
@@ -60,28 +54,56 @@ export default function StickyChat() {
           <div>
             <h3 className="font-medium">CA Amit Aggrawal</h3>
             <div className="flex items-center text-xs text-white/80">
-              <div className="h-2 w-2 rounded-full bg-green-400 mr-2"></div>
-              Online now
+              <div className={`h-2 w-2 rounded-full mr-2 ${
+                connectionStatus === 'connected' ? 'bg-green-400' : 
+                connectionStatus === 'connecting' ? 'bg-yellow-400' : 'bg-red-400'
+              }`}></div>
+              {connectionStatus === 'connected' ? 'Online now' : 
+               connectionStatus === 'connecting' ? 'Connecting...' : 'Offline'}
             </div>
           </div>
         </div>
       </div>
       
+      {/* Payment popup - shown when payment link is received */}
+      {showPaymentPopup && paymentLink && (
+        <div className="absolute inset-0 bg-black/30 z-20 flex items-center justify-center">
+          <div className="bg-white rounded-lg shadow-lg p-5 max-w-sm w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium">Complete Payment</h3>
+              <button onClick={closePaymentPopup} className="text-gray-500 hover:text-gray-700">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mb-4 text-gray-700">
+              Click the button below to securely complete your payment for company registration:
+            </p>
+            <button 
+              onClick={handlePaymentClick}
+              className="w-full bg-blue text-white py-3 rounded-lg flex items-center justify-center space-x-2 hover:bg-blue/90 transition"
+            >
+              <CreditCard className="h-5 w-5" />
+              <span>Pay Now</span>
+            </button>
+          </div>
+        </div>
+      )}
+      
       {/* Chat messages */}
       <div className="flex-1 p-3 overflow-y-auto bg-gray-50 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
         <div className="space-y-4">
-          {chatHistory.map((chat, index) => (
+          {messages.map((message, index) => (
             <div 
               key={index} 
-              className={`flex ${chat.sender === "user" ? "justify-end" : "justify-start"}`}
+              className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
             >
-              <div className={`flex max-w-[80%] ${chat.sender === "user" ? "flex-row-reverse" : "flex-row"}`}>
+              <div className={`flex max-w-[80%] ${message.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
                 <div 
                   className={`flex items-center justify-center h-8 w-8 rounded-full flex-shrink-0 ${
-                    chat.sender === "user" ? "bg-orange ml-2" : "bg-blue mr-2"
+                    message.role === "user" ? "bg-orange ml-2" : "bg-blue mr-2"
                   }`}
                 >
-                  {chat.sender === "user" ? (
+                  {message.role === "user" ? (
                     <User className="h-4 w-4 text-white" />
                   ) : (
                     <Bot className="h-4 w-4 text-white" />
@@ -90,41 +112,69 @@ export default function StickyChat() {
                 <div>
                   <div 
                     className={`p-3 rounded-lg ${
-                      chat.sender === "user" 
+                      message.role === "user" 
                         ? "bg-orange text-white rounded-tr-none"
                         : "bg-white text-darkgray border border-gray-200 rounded-tl-none"
                     }`}
                   >
-                    <p className="text-sm">{chat.message}</p>
+                    <p className="text-sm">{message.content}</p>
                   </div>
-                  <div 
-                    className={`flex items-center text-xs mt-1 text-gray-500 ${
-                      chat.sender === "justify-end" ? "justify-end" : "justify-start"
-                    }`}
-                  >
+                  <div className="flex items-center text-xs mt-1 text-gray-500">
                     <Clock className="h-3 w-3 mr-1" />
-                    {chat.time}
+                    {message.time}
                   </div>
                 </div>
               </div>
             </div>
           ))}
+          
+          {/* Loading indicator */}
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="flex max-w-[80%] flex-row">
+                <div className="flex items-center justify-center h-8 w-8 rounded-full flex-shrink-0 bg-blue mr-2">
+                  <Bot className="h-4 w-4 text-white" />
+                </div>
+                <div>
+                  <div className="p-3 rounded-lg bg-white text-darkgray border border-gray-200 rounded-tl-none">
+                    <div className="flex items-center space-x-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <p className="text-sm">Typing...</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <div ref={messagesEndRef} />
         </div>
       </div>
       
       {/* Quick action buttons */}
       <div className="p-1.5 border-t border-gray-100 flex overflow-x-auto gap-2 bg-gray-50">
-        <button className="px-3 py-1.5 text-xs bg-blue/10 text-blue rounded-full whitespace-nowrap hover:bg-blue/20 transition-colors">
+        <button 
+          onClick={() => sendChatMessage("Tell me about the registration process")}
+          className="px-3 py-1.5 text-xs bg-blue/10 text-blue rounded-full whitespace-nowrap hover:bg-blue/20 transition-colors"
+        >
           Registration Process
         </button>
-        <button className="px-3 py-1.5 text-xs bg-blue/10 text-blue rounded-full whitespace-nowrap hover:bg-blue/20 transition-colors">
+        <button 
+          onClick={() => sendChatMessage("What documents are required?")}
+          className="px-3 py-1.5 text-xs bg-blue/10 text-blue rounded-full whitespace-nowrap hover:bg-blue/20 transition-colors"
+        >
           Documents Required
         </button>
-        <button className="px-3 py-1.5 text-xs bg-blue/10 text-blue rounded-full whitespace-nowrap hover:bg-blue/20 transition-colors">
+        <button 
+          onClick={() => sendChatMessage("What are your pricing plans?")}
+          className="px-3 py-1.5 text-xs bg-blue/10 text-blue rounded-full whitespace-nowrap hover:bg-blue/20 transition-colors"
+        >
           Pricing Plans
         </button>
-        <button className="px-3 py-1.5 text-xs bg-blue/10 text-blue rounded-full whitespace-nowrap hover:bg-blue/20 transition-colors">
+        <button 
+          onClick={() => sendChatMessage("How long does the process take?")}
+          className="px-3 py-1.5 text-xs bg-blue/10 text-blue rounded-full whitespace-nowrap hover:bg-blue/20 transition-colors"
+        >
           Processing Time
         </button>
       </div>
@@ -137,17 +187,23 @@ export default function StickyChat() {
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Type your message here..."
             className="flex-1 focus-visible:ring-blue"
+            disabled={connectionStatus !== 'connected' || isLoading}
           />
           <Button 
             type="submit"
             className="bg-blue hover:bg-blue/90 text-white"
+            disabled={!message.trim() || connectionStatus !== 'connected' || isLoading}
           >
             <Send className="h-4 w-4" />
           </Button>
         </div>
-        {/* <p className="text-xs text-gray-500 mt-2">
-          Powered by AI • Responses typically within 5 seconds
-        </p> */}
+        <p className="text-xs text-gray-500 mt-2">
+          {connectionStatus === 'connected' ? 
+            'Connected to AI assistant • Responses typically within 5 seconds' : 
+            connectionStatus === 'connecting' ? 
+            'Connecting to AI assistant...' : 
+            'Disconnected - Unable to reach the assistant'}
+        </p>
       </form>
     </div>
   );
