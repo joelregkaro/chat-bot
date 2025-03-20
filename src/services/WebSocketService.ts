@@ -16,7 +16,7 @@ const TAB_ID = `tab_${Date.now()}_${Math.random().toString(36).substring(2, 10)}
 sessionStorage.setItem('registerKaroTabId', TAB_ID);
 console.log(`Initialized unique tab ID: ${TAB_ID}`);
 
-export type MessageType = 'message' | 'follow_up' | 'payment_link' | 'show_document_upload' | 'session_info' | 'set_cookie' | 'typing_indicator' | 'typing_ended';
+export type MessageType = 'message' | 'follow_up' | 'payment_link' | 'show_document_upload' | 'session_info' | 'set_cookie' | 'typing_indicator' | 'typing_ended' | 'payment_status' | 'check_payment_status';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -34,6 +34,10 @@ export interface WebSocketResponse {
   requires_cookie?: boolean;
   requires_device_id?: boolean;
   messageId?: string; // Added to help with message deduplication
+  payment_completed?: boolean; // Server indicating completed payment
+  payment_status?: string; // Payment status from server (completed, pending, failed)
+  payment_id?: string; // Payment ID from server
+  status?: string; // General status field (completed, pending, failed)
 }
 
 export type MessageHandler = (message: WebSocketResponse) => void;
@@ -209,6 +213,13 @@ class WebSocketService {
   public addStatusHandler(handler: ConnectionStatusHandler): void {
     this.statusHandlers.push(handler);
   }
+  
+  /**
+   * Remove a connection status handler
+   */
+  public removeStatusHandler(handler: ConnectionStatusHandler): void {
+    this.statusHandlers = this.statusHandlers.filter(h => h !== handler);
+  }
 
   /**
    * Get current connection status
@@ -225,6 +236,67 @@ class WebSocketService {
    */
   public getMessageHandlerCount(): number {
     return this.messageHandlers.length;
+  }
+  
+  /**
+   * Explicitly check with server for payment status
+   * External components can call this to verify if the user has previously completed payment
+   */
+  public checkPaymentStatus(): void {
+    // Only check if we have a connection and sufficient identification
+    if (!this.isConnected || (!this.cookieId && !this.deviceId)) {
+      console.log('Unable to check payment status: Not connected or missing identifiers');
+      return;
+    }
+    
+    console.log('Explicitly checking payment status with server');
+    
+    this.sendToServer({
+      type: 'check_payment_status',
+      session_id: this.sessionId,
+      cookie_id: this.cookieId,
+      device_id: this.deviceId,
+      tab_id: sessionStorage.getItem('registerKaroTabId') || TAB_ID
+    });
+  }
+  
+  /**
+   * Helper method to send data to the server
+   */
+  public sendToServer(data: any): boolean {
+    if (!this.isConnected || !this.socket) {
+      console.log('Cannot send data - not connected');
+      return false;
+    }
+    
+    try {
+      this.socket.send(JSON.stringify(data));
+      return true;
+    } catch (e) {
+      console.error('Error sending data to server:', e);
+      return false;
+    }
+  }
+  
+  /**
+   * Get the current session ID
+   */
+  public getSessionId(): string | null {
+    return this.sessionId;
+  }
+  
+  /**
+   * Get the current cookie ID
+   */
+  public getCookieId(): string | null {
+    return this.cookieId;
+  }
+  
+  /**
+   * Get the current device ID
+   */
+  public getDeviceId(): string | null {
+    return this.deviceId;
   }
 
   /**
@@ -273,6 +345,49 @@ class WebSocketService {
       
       console.log(`[WEBSOCKET:${messageTimeId}] Received type=${data.type}, preview="${preview}...", handlers=${this.messageHandlers.length}`);
 
+      // Check for payment completion status from the server
+      if (data.payment_completed === true ||
+          (data.type === 'payment_status' && data.payment_status === 'completed') ||
+          (data.type === 'message' && data.text && (
+            data.text.includes("payment has been successfully received") ||
+            data.text.includes("payment has been processed") ||
+            data.text.includes("payment is complete") ||
+            data.text.includes("payment successful")
+          ))) {
+        console.log(`[WEBSOCKET:${messageTimeId}] Payment completion detected from server`);
+        
+        // Store in localStorage for persistence
+        try {
+          localStorage.setItem('paymentCompleted', 'true');
+          console.log('Payment marked as completed - synced from server');
+        } catch (e) {
+          console.error('Error storing payment status:', e);
+        }
+      }
+
+      // Check if message indicates payment completed
+      if (data.payment_status === 'completed' ||
+          data.status === 'completed' ||
+          data.payment_completed === true ||
+          (data.type === 'payment_status' && data.status === 'completed')) {
+        console.log(`[WEBSOCKET:${messageTimeId}] Payment completion detected from server`);
+        
+        try {
+          localStorage.setItem('paymentCompleted', 'true');
+          console.log(`[WEBSOCKET:${messageTimeId}] Stored payment completion in localStorage`);
+        } catch (e) {
+          console.error('Error storing payment status:', e);
+        }
+        
+        // Notify all handlers that payment is completed
+        this.messageHandlers.forEach(handler => handler({
+          type: 'payment_status',
+          payment_completed: true,
+          status: 'completed',
+          messageId: `payment_${messageTimeId}`
+        } as WebSocketResponse));
+      }
+
       // Handle session info
       if (data.type === 'session_info' && data.session_id) {
         // Only set session ID if it's different - prevent duplicate greetings
@@ -287,6 +402,20 @@ class WebSocketService {
         // to process all the default welcome messages that follow
         if (!isNewSession) {
           console.log(`[WEBSOCKET:${messageTimeId}] Reconnected with existing session - may filter welcome messages`);
+        }
+        
+        // Check if we have a cookie ID or device ID - query server for payment status
+        if ((this.cookieId || this.deviceId) && !localStorage.getItem('paymentCompleted')) {
+          console.log(`[WEBSOCKET:${messageTimeId}] Checking payment status with server`);
+          
+          // Query for payment status on session establishment
+          this.socket?.send(JSON.stringify({
+            type: 'check_payment_status',
+            session_id: this.sessionId,
+            cookie_id: this.cookieId,
+            device_id: this.deviceId,
+            tab_id: TAB_ID
+          }));
         }
       }
 

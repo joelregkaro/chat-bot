@@ -10,17 +10,20 @@ import RegistrationProcess from "./components/registration-process";
 import StickyChat from "./components/sticky-chat";
 import Testimonials from "./components/testimonials";
 import WhyChooseUs from "./components/why-choose-us";
-import { useEffect, useState, useRef } from 'react';
-import { Beaker, MessageSquare, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { MessageSquare, X, Beaker, CreditCard } from 'lucide-react';
 import { ChatProvider } from './contexts/ChatContext';
+import ConnectionTest from './test-connection';
+import TestPaymentPersistence from './test-payment-persistence';
 
 const App = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
   // Add smooth scrolling effect for better user experience
-  // Show the test component for WebSocket connection verification
+  // Show the test components for WebSocket connection and payment verification
   const [showConnectionTest, setShowConnectionTest] = useState(false);
+  const [showPaymentTest, setShowPaymentTest] = useState(false);
 
   useEffect(() => {
     // Add intersection observer for fade-in animations
@@ -117,9 +120,9 @@ const App = () => {
           </div>
         )}
 
-       {/* Connection test toggle (development only) */}
+       {/* Dev test toggles */}
        {process.env.NODE_ENV === 'development' && (
-         <div className="fixed top-20 right-4 z-40">
+         <div className="fixed top-20 right-4 z-40 flex flex-col gap-2">
            <button
              onClick={() => setShowConnectionTest(!showConnectionTest)}
              className={`bg-purple-600 text-white p-2 rounded-full shadow-lg hover:bg-purple-700 flex items-center gap-2`}
@@ -127,6 +130,15 @@ const App = () => {
            >
              <Beaker size={18} />
              <span className="text-xs">Test WS</span>
+           </button>
+           
+           <button
+             onClick={() => setShowPaymentTest(!showPaymentTest)}
+             className={`bg-green-600 text-white p-2 rounded-full shadow-lg hover:bg-green-700 flex items-center gap-2`}
+             title="Toggle Payment Test"
+           >
+             <CreditCard size={18} />
+             <span className="text-xs">Test Pay</span>
            </button>
          </div>
        )}
@@ -145,6 +157,24 @@ const App = () => {
                </button>
              </div>
              {/* <ConnectionTest /> */}
+           </div>
+         </div>
+       )}
+       
+       {/* Payment persistence test (only visible when toggled) */}
+       {showPaymentTest && (
+         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+           <div className="bg-white rounded-lg shadow-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-auto">
+             <div className="flex justify-between items-center mb-4">
+               <h2 className="text-xl font-bold">Payment Persistence Test</h2>
+               <button
+                 onClick={() => setShowPaymentTest(false)}
+                 className="text-gray-500 hover:text-gray-700"
+               >
+                 <X />
+               </button>
+             </div>
+             <TestPaymentPersistence />
            </div>
          </div>
        )}

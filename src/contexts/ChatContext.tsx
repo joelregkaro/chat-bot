@@ -9,6 +9,8 @@ interface ChatContextProps {
   showPaymentPopup: boolean;
   closePaymentPopup: () => void;
   isLoading: boolean;
+  hasCompletedPayment: boolean;
+  markPaymentCompleted: () => void;
 }
 
 const ChatContext = createContext<ChatContextProps | undefined>(undefined);
@@ -26,8 +28,57 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   // Start with loading false - only set to true when a message is actively being sent/received
   const [isLoading, setIsLoading] = useState(false);
   
+  // Track whether payment has been completed to avoid asking again
+  const [hasCompletedPayment, setHasCompletedPayment] = useState(false);
+  
   // Track whether we've had at least one successful message exchange
   const hasReceivedMessages = React.useRef(false);
+  
+  // Initialize payment verification from database
+  useEffect(() => {
+    // Status handler that checks payment status when connection is established
+    const checkServerOnConnect = (status: 'connected' | 'connecting' | 'disconnected' | 'error') => {
+      if (status === 'connected') {
+        console.log('Connected to server, checking payment status with database');
+        
+        // Query the server database for payment status - more reliable than localStorage
+        webSocketService.checkPaymentStatus();
+        
+        // Remove handler after first connection to avoid duplicate checks
+        webSocketService.removeStatusHandler(checkServerOnConnect);
+      }
+    };
+    
+    // Add connection status handler to check on initial connection
+    webSocketService.addStatusHandler(checkServerOnConnect);
+    
+    // Create message handler to listen for payment status response
+    const paymentStatusHandler = (data: WebSocketResponse) => {
+      // Check for payment status update or completion message from server
+      if (data.payment_completed === true ||
+          (data.payment_status === 'completed') ||
+          (data.status === 'completed')) {
+        console.log('Received payment completion confirmation from server database');
+        setHasCompletedPayment(true);
+        
+        // Store in localStorage as a cache only - source of truth is the database
+        try {
+          localStorage.setItem('paymentCompleted', 'true');
+        } catch (e) {
+          console.error('Error caching payment status to localStorage:', e);
+        }
+      }
+    };
+    
+    // Add message handler for payment status
+    webSocketService.addMessageHandler(paymentStatusHandler);
+    
+    // Clean up handlers when component unmounts
+    return () => {
+      webSocketService.removeStatusHandler(checkServerOnConnect);
+      // No need to remove message handler as addMessageHandler prevents duplicates
+    };
+  }, []);
 
   // Format timestamp for messages
   const formatTime = () => {
@@ -160,8 +211,23 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       }
       setIsLoading(false);
     } else if (data.type === 'payment_link' && data.link) {
-      setPaymentLink(data.link);
-      setShowPaymentPopup(true);
+      // Don't show payment popup if user has already completed payment
+      if (hasCompletedPayment) {
+        console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] Payment already completed, not showing payment popup`);
+        // Let the server know we've already completed payment
+        webSocketService.sendMessage("I've already completed payment for my registration. Please check your records.");
+      } else {
+        setPaymentLink(data.link);
+        setShowPaymentPopup(true);
+      }
+    } else if (data.text &&
+               (data.text.includes("payment has been successfully received") ||
+                data.text.includes("payment has been processed") ||
+                data.text.includes("payment is complete") ||
+                data.text.includes("payment successful"))) {
+      // Auto-detect successful payment in message texts and mark as completed
+      console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] Payment success detected in message, marking payment as completed`);
+      markPaymentCompleted();
     }
   };
 
@@ -223,6 +289,31 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const closePaymentPopup = () => {
     setShowPaymentPopup(false);
   };
+  
+  // Mark payment as completed - syncs with backend database and local storage
+  const markPaymentCompleted = () => {
+    setHasCompletedPayment(true);
+    try {
+      // Store in localStorage as a cache
+      localStorage.setItem('paymentCompleted', 'true');
+      
+      // Sync with server database for persistence across devices and sessions
+      // This ensures the payment status is stored in MongoDB and persists even if localStorage is cleared
+      webSocketService.sendToServer({
+        type: 'payment_status',
+        payment_completed: true,
+        payment_status: 'completed',
+        session_id: webSocketService.getSessionId(),
+        cookie_id: webSocketService.getCookieId(),
+        device_id: webSocketService.getDeviceId(),
+        timestamp: new Date().toISOString()
+      });
+      
+      console.log('Payment marked as completed and synced with server database');
+    } catch (e) {
+      console.error('Error storing payment status:', e);
+    }
+  };
 
   // Set up inactivity handler for follow-up messages
   useEffect(() => {
@@ -266,6 +357,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         paymentLink,
         showPaymentPopup,
         closePaymentPopup,
+        hasCompletedPayment,
+        markPaymentCompleted,
         isLoading
       }}
     >
