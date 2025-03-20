@@ -37,6 +37,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   // Create an instance ID for this ChatContext for tracking duplicates
   const contextId = React.useRef(`context_${Date.now()}_${Math.random().toString(36).substring(2,7)}`);
   
+  // Store all message content we've received to prevent duplicates across sessions
+  const seenMessageContents = React.useRef<Set<string>>(new Set());
+  
   // Handle incoming messages from WebSocket
   const handleWebSocketMessage = (data: WebSocketResponse) => {
     const time = formatTime();
@@ -71,25 +74,42 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
           console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] GREETING DETECTED, shouldSkip=${shouldSkipGreeting}`);
         }
         
-        // Check if we've seen this message before
-        const isDuplicate = lastMessageIds.includes(messageId);
+        // Check if we've seen EXACT message content before (regardless of ID)
+        // This uses a persistent ref so it persists between renders
+        const contentFingerprint = messageText.trim();
+        const contentAlreadySeen = seenMessageContents.current.has(contentFingerprint);
+
+        // Check if we've seen this message ID before
+        const isDuplicate = lastMessageIds.includes(messageId) || contentAlreadySeen;
+        
         if (isDuplicate) {
-          console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] DUPLICATE MESSAGE DETECTED: "${preview}..."`);
+          console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] DUPLICATE MESSAGE DETECTED: "${preview}..." (contentSeen=${contentAlreadySeen})`);
         }
         
         // Only add the message if we haven't seen it recently and it's not a duplicate greeting
         if (!isDuplicate && !shouldSkipGreeting) {
           console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] ADDING MESSAGE to chat history`);
           
+          // Record this content as seen to prevent future duplication
+          seenMessageContents.current.add(contentFingerprint);
+          
           setMessages((prev) => {
-            // Final duplication check on the setState callback
-            const lastMsg = prev[prev.length - 1];
-            if (lastMsg && lastMsg.content === messageText) {
-              console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] CAUGHT DUPLICATE in setState`);
+            // Extra safety: Check if the last message content is the same
+            const lastMsg = prev.length > 0 ? prev[prev.length - 1] : null;
+            
+            // Explicit duplicate check regardless of timestamp/ID
+            if (lastMsg && lastMsg.content.trim() === contentFingerprint) {
+              console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] CAUGHT DUPLICATE in setState - identical content`);
               return prev; // Don't add duplicate
             }
             
-            // Add the message
+            // Check for duplicate welcome message regardless of position in history
+            if (isGreeting && prev.some(m => m.content.includes("Welcome") || m.content.includes("Hello!"))) {
+              console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] CAUGHT DUPLICATE welcome message in history`);
+              return prev; // Don't add duplicate welcome
+            }
+            
+            // Add the message when it's genuinely new
             return [...prev, { role: 'assistant', content: messageText, time }];
           });
           
