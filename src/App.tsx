@@ -15,6 +15,8 @@ import { MessageSquare, X, Beaker, CreditCard } from 'lucide-react';
 import { ChatProvider } from './contexts/ChatContext';
 import ConnectionTest from './test-connection';
 import TestPaymentPersistence from './test-payment-persistence';
+import Clarity from '@microsoft/clarity';
+
 
 const App = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -24,6 +26,12 @@ const App = () => {
   // Show the test components for WebSocket connection and payment verification
   const [showConnectionTest, setShowConnectionTest] = useState(false);
   const [showPaymentTest, setShowPaymentTest] = useState(false);
+
+  useEffect(()=>{
+    if (process.env.NODE_ENV === 'production' && process.env.REACT_PROJECT_ID) {
+      Clarity.init(process.env.REACT_PROJECT_ID);
+    }
+  },[])
 
   useEffect(() => {
     // Add intersection observer for fade-in animations
