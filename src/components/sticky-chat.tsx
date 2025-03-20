@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Send, User, Bot, Sparkles, Clock } from "lucide-react";
 
 export default function StickyChat() {
   const [message, setMessage] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [chatHistory, setChatHistory] = useState<{ sender: string; message: string; time: string }[]>([
     { 
       sender: "bot", 
@@ -12,6 +13,14 @@ export default function StickyChat() {
       time: "Just now" 
     }
   ]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [chatHistory]);
 
   const handleSendMessage = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -41,7 +50,7 @@ export default function StickyChat() {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-floating w-full min-h-[400px] flex flex-col overflow-hidden border border-gray-100">
+    <div className="bg-white rounded-2xl shadow-floating w-full h-[calc(100vh-8rem)] flex flex-col overflow-hidden border border-gray-100">
       {/* Chat header */}
       <div className="bg-blue text-white p-3 flex items-center justify-between">
         <div className="flex items-center space-x-3">
@@ -49,7 +58,7 @@ export default function StickyChat() {
             <Sparkles className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="font-medium">AI Assistant</h3>
+            <h3 className="font-medium">CA Amit Aggrawal</h3>
             <div className="flex items-center text-xs text-white/80">
               <div className="h-2 w-2 rounded-full bg-green-400 mr-2"></div>
               Online now
@@ -59,7 +68,7 @@ export default function StickyChat() {
       </div>
       
       {/* Chat messages */}
-      <div className="flex-1 p-3 overflow-y-auto bg-gray-50">
+      <div className="flex-1 p-3 overflow-y-auto bg-gray-50 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
         <div className="space-y-4">
           {chatHistory.map((chat, index) => (
             <div 
@@ -90,7 +99,7 @@ export default function StickyChat() {
                   </div>
                   <div 
                     className={`flex items-center text-xs mt-1 text-gray-500 ${
-                      chat.sender === "user" ? "justify-end" : "justify-start"
+                      chat.sender === "justify-end" ? "justify-end" : "justify-start"
                     }`}
                   >
                     <Clock className="h-3 w-3 mr-1" />
@@ -100,6 +109,7 @@ export default function StickyChat() {
               </div>
             </div>
           ))}
+          <div ref={messagesEndRef} />
         </div>
       </div>
       

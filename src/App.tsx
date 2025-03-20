@@ -104,7 +104,7 @@ const App = () => {
           </div>
         )}
 
-        <div className="flex flex-col md:flex-row">
+        <div className="flex flex-col md:flex-row relative">
           <main className="w-full md:w-[70%]">
             <div id="hero" className="fade-in">
               <Hero />
@@ -131,10 +131,8 @@ const App = () => {
               <ExpertAssistance />
             </div>
           </main>
-          <aside className="hidden md:block md:w-[30%]">
-            <div className="sticky top-20 h-[calc(100vh-5rem)] p-4">
-              <StickyChat />
-            </div>
+          <aside className="hidden md:block md:w-[30%] fixed right-0 top-14 h-[calc(100vh-5rem)] p-4">
+            <StickyChat />
           </aside>
         </div>
         <Footer />
