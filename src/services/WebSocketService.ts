@@ -142,6 +142,22 @@ class WebSocketService {
    * Register a message handler
    */
   public addMessageHandler(handler: MessageHandler): void {
+    // Add a unique ID to this handler for tracking
+    const handlerId = `handler_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    
+    console.log(`[DEBUG] Adding new message handler ${handlerId}. Total handlers: ${this.messageHandlers.length + 1}`);
+    console.log(`[DEBUG] Current handlers stack:`, this.messageHandlers.length);
+    
+    // Check if this function is already registered to prevent duplicates
+    const handlerStr = handler.toString();
+    const existingHandler = this.messageHandlers.find(h => h.toString() === handlerStr);
+    
+    if (existingHandler) {
+      console.warn(`[DEBUG] Handler appears to be a duplicate! Not adding again.`);
+      return;
+    }
+    
+    // Add the handler
     this.messageHandlers.push(handler);
   }
 
@@ -159,6 +175,14 @@ class WebSocketService {
     if (this.isConnected) return 'connected';
     if (this.isConnecting) return 'connecting';
     return 'disconnected';
+  }
+  
+  /**
+   * Get the count of message handlers
+   * This helps in determining if we should disconnect when a component unmounts
+   */
+  public getMessageHandlerCount(): number {
+    return this.messageHandlers.length;
   }
 
   /**
@@ -196,14 +220,23 @@ class WebSocketService {
   private handleMessage(event: MessageEvent): void {
     try {
       const data: WebSocketResponse = JSON.parse(event.data);
-      console.log('Received WebSocket message:', data);
+      
+      // Generate a unique ID for this message for logging
+      const messageTimeId = Date.now();
+      
+      // For text messages, create a preview for better identification
+      const preview = data.text
+        ? data.text.substring(0, 30).replace(/\s+/g, ' ')
+        : '[no text]';
+      
+      console.log(`[WEBSOCKET:${messageTimeId}] Received type=${data.type}, preview="${preview}...", handlers=${this.messageHandlers.length}`);
 
       // Handle session info
       if (data.type === 'session_info' && data.session_id) {
         // Only set session ID if it's different - prevent duplicate greetings
         const isNewSession = this.sessionId !== data.session_id;
         this.sessionId = data.session_id;
-        console.log(`Session ID set: ${this.sessionId}`);
+        console.log(`[WEBSOCKET:${messageTimeId}] Session ID set: ${this.sessionId} (isNew=${isNewSession})`);
         
         // Store in sessionStorage for persistence
         sessionStorage.setItem('chatSessionId', this.sessionId);
@@ -211,7 +244,7 @@ class WebSocketService {
         // If this is a reconnection with the same session ID, we might not need
         // to process all the default welcome messages that follow
         if (!isNewSession) {
-          console.log('Reconnected with existing session - may filter welcome messages');
+          console.log(`[WEBSOCKET:${messageTimeId}] Reconnected with existing session - may filter welcome messages`);
         }
       }
 
@@ -227,11 +260,41 @@ class WebSocketService {
       // For actual messages, add a messageId property to help frontend deduplicate
       if ((data.type === 'message' || data.type === 'follow_up') && data.text) {
         // Adding timestamp to make message unique even with same content
-        data.messageId = `${Date.now()}-${data.text.substring(0, 20)}`;
+        data.messageId = `${messageTimeId}-${data.text.substring(0, 20)}`;
+        
+        // Detect greeting messages for special handling
+        const isGreeting = data.text.includes("Hello!") ||
+                         data.text.includes("Welcome") ||
+                         data.text.includes("How can I help you");
+                         
+        if (isGreeting) {
+          console.log(`[WEBSOCKET:${messageTimeId}] DETECTED GREETING MESSAGE: "${preview}..."`);
+        }
+        
+        // Store the raw text preview for duplicate detection
+        // @ts-ignore - add temp property for debugging
+        data._rawPreview = preview;
       }
 
-      // Notify all message handlers
-      this.messageHandlers.forEach(handler => handler(data));
+      // Notify all message handlers with tracking
+      console.log(`[WEBSOCKET:${messageTimeId}] Notifying ${this.messageHandlers.length} handlers`);
+      
+      // Keep track of which handler processed this message
+      const processedHandlers: string[] = [];
+      
+      this.messageHandlers.forEach((handler, index) => {
+        // Generate a handler fingerprint for tracking
+        const handlerFingerprint = handler.toString().substring(0, 50);
+        processedHandlers.push(handlerFingerprint);
+        
+        console.log(`[WEBSOCKET:${messageTimeId}] Executing handler #${index+1}/${this.messageHandlers.length}`);
+        handler(data);
+      });
+      
+      // Log all handlers that processed this message
+      if (data.type === 'message' || data.type === 'follow_up') {
+        console.log(`[WEBSOCKET:${messageTimeId}] Message "${preview}" processed by ${processedHandlers.length} handlers`);
+      }
     } catch (error) {
       console.error('Error parsing WebSocket message:', error);
     }
