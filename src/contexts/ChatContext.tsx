@@ -56,11 +56,22 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     
     console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] Received message type=${data.type}, preview="${preview}..."`);
 
-    // Handle typing indicators - DISABLED due to blocking input field
+    // Handle typing indicators - Re-enabled but with better management
     if (data.type === 'typing_indicator') {
-      console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] Received typing indicator but IGNORING IT`);
-      // No longer setting loading state for typing indicators
-      // This prevents the unnecessary "Typing..." indicator that blocks the input
+      console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] Received typing indicator`);
+      
+      // Only show typing indicator if we've received at least one actual message
+      if (hasReceivedMessages.current) {
+        setIsLoading(true);
+        
+        // Automatically clear typing after 15 seconds as a safety measure
+        setTimeout(() => {
+          console.log(`[CHAT_CONTEXT:${contextId.current}] Safety timeout clearing typing indicator`);
+          setIsLoading(false);
+        }, 15000);
+      } else {
+        console.log(`[CHAT_CONTEXT:${contextId.current}] Ignoring typing indicator - no messages yet`);
+      }
       return;
     }
     

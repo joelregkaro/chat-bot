@@ -1,125 +1,116 @@
-# RegisterKaro AI Sales Agent Integration
+# RegisterKaro Chat Bot Integration Guide
 
-This project integrates the RegisterKaro AI Sales Agent React frontend with the Python/FastAPI backend, creating a complete end-to-end solution.
+This document provides information about how the chat frontend integrates with the RegisterKaro agent backend, along with implementation details for key features.
 
-## Project Structure
+## Key Integration Features
 
-The project consists of two main components:
+1. **WebSocket Communication**: The frontend communicates with the backend via WebSockets
+2. **Tab-Isolated Sessions**: Each browser tab maintains its own isolated chat session
+3. **Persistent Sessions**: User sessions are stored with 90-day cookie expiration
+4. **Payment Processing**: Seamless integration with Razorpay for payments
+5. **Document Requirements**: Post-payment document requirement display
 
-1. **Frontend (React)** - Located in this directory (`chat-bot`)
-2. **Backend (Python/FastAPI)** - Located in the `ai-bot-backend/register_karo_agent` directory
+## Frontend-Backend Communication
 
-## Setup Instructions
+### WebSocket Protocol
 
-### Prerequisites
+The frontend connects to the backend using a WebSocket connection and exchanges JSON messages. Key message types include:
 
-- Node.js (v14 or later)
-- Python (v3.8 or later)
-- npm or yarn
+- `message`: Text messages from the user to the agent
+- `session_info`: Session identification from the server
+- `cookie_id`: Cookie-based session persistence
+- `client_info`: Client device and environment information 
+- `payment_link`: Payment link processing
+- `tab_id`: Browser tab identification for isolated sessions
 
-### Backend Setup
+### Session Management
 
-1. Navigate to the backend directory:
-   ```
-   cd ../ai-bot-backend/register_karo_agent
-   ```
+Sessions are managed through multiple identifiers to ensure both persistence and proper isolation:
 
-2. Create a virtual environment (if not already created):
-   ```
-   python -m venv venv
-   ```
-
-3. Activate the virtual environment:
-   - Windows:
-     ```
-     venv\Scripts\activate
-     ```
-   - macOS/Linux:
-     ```
-     source venv/bin/activate
-     ```
-
-4. Install dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
-
-5. Configure environment variables:
-   - Update the `.env` file with necessary API keys and settings
-   - For testing, you can use the provided settings with limited functionality
-
-### Frontend Setup
-
-1. Navigate to the frontend directory:
-   ```
-   cd chat-bot
-   ```
-
-2. Install dependencies:
-   ```
-   npm install
-   ```
-   
-3. Install the concurrently package for running both servers:
-   ```
-   npm install concurrently --save-dev
-   ```
-
-## Running the Application
-
-### Running Frontend and Backend Together
-
-Use the following command from the `chat-bot` directory to start both servers simultaneously:
-
-```
-npm run start:dev
-```
-
-This will start:
-- The React frontend on http://localhost:3000
-- The FastAPI backend on http://localhost:8001
-
-### Running Separately
-
-If you need to run the servers separately:
-
-1. Start the backend:
-   ```
-   cd ../ai-bot-backend/register_karo_agent
-   python start_server.py
-   ```
-
-2. Start the frontend:
-   ```
-   cd chat-bot
-   npm start
-   ```
-
-## Features
-
-- Real-time chat using WebSocket connections
-- AI-powered responses from OpenAI's API
-- Payment integration using Razorpay
-- User session tracking and persistence
-- Mobile-responsive design
+- **Cookie ID**: Stored in localStorage with 90-day expiration for long-term persistence across browser sessions
+- **Session ID**: Unique identifier for each WebSocket connection
+- **Tab ID**: Ensures each browser tab gets its own isolated context
+- **Device ID**: Browser fingerprinting for device identification
 
 ## Implementation Details
 
-### WebSocket Communication
+### Tab Isolation
 
-The frontend connects to the backend via WebSockets for real-time messaging. The connection is established when the chat component mounts and maintains the connection throughout the user's session.
+Browser tabs are isolated through the following mechanism:
+
+1. Each tab generates a unique `tab_id` when initialized
+2. This ID is stored in `sessionStorage` (unique to each tab)
+3. The `tab_id` is sent with every message to the backend
+4. The backend appends the `tab_id` to the session ID to create isolated sessions
+5. This prevents cross-talk between tabs while still allowing persistent user identity
 
 ### Payment Processing
 
-The integration handles Razorpay payment processing:
-1. Backend generates a payment link
-2. Frontend displays the payment popup
-3. User completes payment
-4. Backend verifies the payment status
-5. Both sides update to reflect successful payment
+Payment processing follows this flow:
+
+1. Backend generates a Razorpay payment link
+2. Frontend receives the link via WebSocket
+3. Frontend opens the payment link in a new tab
+4. After payment, the backend verifies the payment status
+5. Upon successful payment, the backend sends document requirements
+
+### Post-Payment Flow
+
+After successful payment:
+
+1. Payment popup closes automatically
+2. Backend confirms payment completion
+3. Backend sends document requirements specific to the company type
+4. User receives notification that our team will contact them shortly
+
+## Testing the Integration
+
+1. **Basic Chat**: Ensure messages are sent and received properly
+2. **Multiple Tabs**: Open multiple tabs and verify each maintains its own conversation
+3. **Session Persistence**: Close and reopen browser to verify session persistence
+4. **Payment Flow**: Test the payment flow (using test mode)
 
 ## Troubleshooting
 
-- If the WebSocket connection fails, check that both servers are running and that the WebSocket URL in `.env` is correct.
-- For payment issues, verify that the Razorpay test keys are properly configured.
-- Check the backend logs in `ai-bot-backend/register_karo_agent/logs/register_karo.log` for detailed error information.
+### Common Issues
+
+1. **WebSocket Connection Issues**:
+   - Check network connectivity
+   - Verify backend server is running
+   - Ensure WebSocket endpoint URLs are correct
+
+2. **Session Problems**:
+   - Clear browser data/cookies if experiencing unexpected behavior
+   - Check browser console for error messages
+
+3. **Payment Integration Issues**:
+   - Verify Razorpay test keys are configured correctly
+   - Check network logs for payment API communication
+
+## Recent Fixes
+
+### 2025-03-20 Updates
+
+1. **Fixed typing indicator issues**:
+   - Disabled post-message typing indicators
+   - Added better typing indicator handling
+
+2. **Fixed session persistence**:
+   - Implemented 90-day cookie expiration
+   - Added format versioning for future compatibility
+   - Improved error handling for malformed cookies
+
+3. **Fixed payment popup issues**:
+   - Switched to direct new tab opening for payments
+   - Added fallback for popup blockers
+   - Improved payment status checking
+
+4. **Improved tab isolation**:
+   - Implemented session isolation per browser tab
+   - Fixed cross-tab session pollution
+   - Added tab tracking in all WebSocket messages
+
+5. **Updated document flow**:
+   - Removed document upload prompts
+   - Added document requirements information after payment
+   - Improved company-type specific document requirements

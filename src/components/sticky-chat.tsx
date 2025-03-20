@@ -4,6 +4,36 @@ import { Input } from "./ui/input";
 import { Send, User, Bot, Sparkles, Clock, X, CreditCard, Loader2 } from "lucide-react";
 import { useChat } from "../contexts/ChatContext";
 
+// Declare Razorpay type for TypeScript
+interface RazorpayOptions {
+  key: string;
+  order_id: string;
+  name: string;
+  description: string;
+  image?: string;
+  prefill?: {
+    name?: string;
+    email?: string;
+    contact?: string;
+  };
+  theme?: {
+    color: string;
+  };
+  modal?: {
+    ondismiss: () => void;
+  };
+}
+
+interface RazorpayInstance {
+  open: () => void;
+}
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: RazorpayOptions) => RazorpayInstance;
+  }
+}
+
 export default function StickyChat() {
   const [message, setMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -34,56 +64,167 @@ export default function StickyChat() {
     setMessage("");
   };
 
-  // Handle payment link click
+  // Handle payment link click with enhanced Razorpay integration
   const handlePaymentClick = () => {
     if (paymentLink) {
-      // Create a modal iframe for the Razorpay payment
-      // This keeps the payment within the app instead of opening a new tab
-      const paymentDiv = document.createElement('div');
-      paymentDiv.style.position = 'fixed';
-      paymentDiv.style.top = '0';
-      paymentDiv.style.left = '0';
-      paymentDiv.style.width = '100%';
-      paymentDiv.style.height = '100%';
-      paymentDiv.style.backgroundColor = 'rgba(0,0,0,0.7)';
-      paymentDiv.style.zIndex = '10000';
-      paymentDiv.style.display = 'flex';
-      paymentDiv.style.alignItems = 'center';
-      paymentDiv.style.justifyContent = 'center';
-      
-      // Create close button
-      const closeButton = document.createElement('button');
-      closeButton.innerText = 'Close';
-      closeButton.style.position = 'absolute';
-      closeButton.style.top = '20px';
-      closeButton.style.right = '20px';
-      closeButton.style.padding = '8px 16px';
-      closeButton.style.backgroundColor = '#fff';
-      closeButton.style.border = 'none';
-      closeButton.style.borderRadius = '4px';
-      closeButton.style.cursor = 'pointer';
-      closeButton.onclick = () => document.body.removeChild(paymentDiv);
-      
-      // Create iframe for payment
-      const iframe = document.createElement('iframe');
-      iframe.src = paymentLink;
-      iframe.style.width = '90%';
-      iframe.style.height = '90%';
-      iframe.style.border = 'none';
-      iframe.style.borderRadius = '8px';
-      iframe.style.backgroundColor = 'white';
-      
-      // Add elements to DOM
-      paymentDiv.appendChild(iframe);
-      paymentDiv.appendChild(closeButton);
-      document.body.appendChild(paymentDiv);
+      // Load Razorpay script if not already loaded
+      if (!window.Razorpay) {
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.async = true;
+        document.body.appendChild(script);
+        
+        script.onload = () => {
+          openRazorpayCheckout(paymentLink);
+        };
+      } else {
+        openRazorpayCheckout(paymentLink);
+      }
       
       // Notify the agent
       sendChatMessage("I'm proceeding to make the payment now.");
       
-      // Close the payment popup overlay
+      // Close our custom payment popup overlay
       closePaymentPopup();
     }
+  };
+  
+  // Function to extract order ID from payment link and open Razorpay checkout
+  const openRazorpayCheckout = (paymentLink: string) => {
+    try {
+      console.log("Opening Razorpay checkout with link:", paymentLink);
+      
+      // Extract order_id from the payment link
+      const url = new URL(paymentLink);
+      const orderId = url.searchParams.get('order_id');
+      
+      if (!orderId) {
+        console.error("Failed to extract order_id from payment link");
+        // Fallback to iframe approach if order_id extraction fails
+        openPaymentIframe(paymentLink);
+        return;
+      }
+      
+      // Load Razorpay script if not already loaded
+      if (!window.Razorpay) {
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.async = true;
+        document.body.appendChild(script);
+        
+        script.onload = () => {
+          console.log("Razorpay script loaded, initializing checkout");
+          initializeRazorpay(orderId, paymentLink);
+        };
+        
+        script.onerror = () => {
+          console.error("Failed to load Razorpay script");
+          openPaymentIframe(paymentLink);
+        };
+      } else {
+        console.log("Razorpay already loaded, initializing checkout");
+        initializeRazorpay(orderId, paymentLink);
+      }
+    } catch (error) {
+      console.error("Error opening Razorpay:", error);
+      // Fallback to iframe approach
+      openPaymentIframe(paymentLink);
+    }
+  };
+  
+  // Initialize Razorpay with the extracted order ID
+  const initializeRazorpay = (orderId: string, fallbackLink: string) => {
+    try {
+      // Configure Razorpay options
+      const options = {
+        key: 'rzp_test_zUaH0H0t4sWFJ8', // Replace with actual key from backend
+        order_id: orderId,
+        name: 'RegisterKaro',
+        description: 'Company Registration Payment',
+        image: 'https://registerkaroonline.com/wp-content/uploads/2023/06/favicon-32x32-1.png',
+        prefill: {
+          name: '',
+          email: '',
+          contact: ''
+        },
+        theme: {
+          color: '#007bff'
+        },
+        modal: {
+          ondismiss: function() {
+            console.log('Payment popup closed without completing payment');
+            sendChatMessage("I see you've closed the payment window. If you need any more information before proceeding with the payment, please let me know.");
+          }
+        },
+        handler: function() {
+          console.log('Payment potentially successful - will verify with backend');
+          sendChatMessage("Great! I'm verifying your payment. This should just take a moment...");
+        }
+      };
+      
+      // Open Razorpay checkout
+      const rzp = new (window as any).Razorpay(options);
+      rzp.on('payment.failed', function(response: any) {
+        console.log('Payment failed:', response.error);
+        sendChatMessage("It looks like there was an issue with the payment. Would you like to try again or use a different payment method?");
+      });
+      
+      rzp.open();
+      console.log("Razorpay checkout opened successfully");
+      
+    } catch (error) {
+      console.error("Error initializing Razorpay:", error);
+      // Fallback to iframe approach
+      openPaymentIframe(fallbackLink);
+    }
+  };
+  
+  // Fallback iframe method if direct Razorpay integration fails
+  const openPaymentIframe = (paymentLink: string) => {
+    console.log("Falling back to iframe payment method");
+    
+    // Create modal iframe for the Razorpay payment
+    const paymentDiv = document.createElement('div');
+    paymentDiv.style.position = 'fixed';
+    paymentDiv.style.top = '0';
+    paymentDiv.style.left = '0';
+    paymentDiv.style.width = '100%';
+    paymentDiv.style.height = '100%';
+    paymentDiv.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    paymentDiv.style.zIndex = '10000';
+    paymentDiv.style.display = 'flex';
+    paymentDiv.style.alignItems = 'center';
+    paymentDiv.style.justifyContent = 'center';
+    
+    // Create close button
+    const closeButton = document.createElement('button');
+    closeButton.innerText = 'Close';
+    closeButton.style.position = 'absolute';
+    closeButton.style.top = '20px';
+    closeButton.style.right = '20px';
+    closeButton.style.padding = '8px 16px';
+    closeButton.style.backgroundColor = '#fff';
+    closeButton.style.border = 'none';
+    closeButton.style.borderRadius = '4px';
+    closeButton.style.cursor = 'pointer';
+    closeButton.onclick = () => document.body.removeChild(paymentDiv);
+    
+    // Create iframe for payment
+    const iframe = document.createElement('iframe');
+    iframe.src = paymentLink;
+    iframe.style.width = '90%';
+    iframe.style.height = '90%';
+    iframe.style.border = 'none';
+    iframe.style.borderRadius = '8px';
+    iframe.style.backgroundColor = 'white';
+    
+    // Add elements to DOM
+    paymentDiv.appendChild(iframe);
+    paymentDiv.appendChild(closeButton);
+    document.body.appendChild(paymentDiv);
+    
+    // Inform user about the payment iframe
+    sendChatMessage("I've opened the payment window for you. Once payment is complete, you can return to this chat.");
   };
 
   return (
