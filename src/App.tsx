@@ -15,6 +15,8 @@ import { MessageSquare, X, Beaker, CreditCard } from 'lucide-react';
 import { ChatProvider } from './contexts/ChatContext';
 import ConnectionTest from './test-connection';
 import TestPaymentPersistence from './test-payment-persistence';
+import PaymentTriggerTest from './test-payment-trigger';
+import TestPaymentAuto from './test-payment-auto';
 import Clarity from '@microsoft/clarity';
 
 
@@ -26,6 +28,8 @@ const App = () => {
   // Show the test components for WebSocket connection and payment verification
   const [showConnectionTest, setShowConnectionTest] = useState(false);
   const [showPaymentTest, setShowPaymentTest] = useState(false);
+  const [showPaymentTrigger, setShowPaymentTrigger] = useState(false);
+  const [showPaymentAuto, setShowPaymentAuto] = useState(false);
 
   useEffect(()=>{
     if (process.env.NODE_ENV === 'production' && process.env.REACT_PROJECT_ID) {
@@ -148,6 +152,24 @@ const App = () => {
              <CreditCard size={18} />
              <span className="text-xs">Test Pay</span>
            </button>
+           
+           <button
+             onClick={() => setShowPaymentTrigger(!showPaymentTrigger)}
+             className={`bg-orange text-white p-2 rounded-full shadow-lg hover:bg-orange/90 flex items-center gap-2`}
+             title="Toggle Payment Trigger Test"
+           >
+             <CreditCard size={18} />
+             <span className="text-xs">Test Trigger</span>
+           </button>
+           
+           <button
+             onClick={() => setShowPaymentAuto(!showPaymentAuto)}
+             className={`bg-indigo-600 text-white p-2 rounded-full shadow-lg hover:bg-indigo-700 flex items-center gap-2`}
+             title="Toggle Auto Payment Test"
+           >
+             <CreditCard size={18} />
+             <span className="text-xs">Auto Pay</span>
+           </button>
          </div>
        )}
        
@@ -183,6 +205,42 @@ const App = () => {
                </button>
              </div>
              <TestPaymentPersistence />
+           </div>
+         </div>
+       )}
+       
+       {/* Payment trigger test (only visible when toggled) */}
+       {showPaymentTrigger && (
+         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+           <div className="bg-white rounded-lg shadow-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-auto">
+             <div className="flex justify-between items-center mb-4">
+               <h2 className="text-xl font-bold">Payment Trigger Test</h2>
+               <button
+                 onClick={() => setShowPaymentTrigger(false)}
+                 className="text-gray-500 hover:text-gray-700"
+               >
+                 <X />
+               </button>
+             </div>
+             <PaymentTriggerTest />
+           </div>
+         </div>
+       )}
+       
+       {/* Auto Payment test (only visible when toggled) */}
+       {showPaymentAuto && (
+         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+           <div className="bg-white rounded-lg shadow-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-auto">
+             <div className="flex justify-between items-center mb-4">
+               <h2 className="text-xl font-bold">Auto Payment Test</h2>
+               <button
+                 onClick={() => setShowPaymentAuto(false)}
+                 className="text-gray-500 hover:text-gray-700"
+               >
+                 <X />
+               </button>
+             </div>
+             <TestPaymentAuto />
            </div>
          </div>
        )}

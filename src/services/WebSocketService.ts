@@ -6,14 +6,59 @@
 // Configurable backend URL - can be overridden via environment variables
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const WS_URL = process.env.REACT_APP_WS_URL || `${WS_PROTOCOL}//${BACKEND_URL.replace(/^https?:\/\//, '')}/ws`;
 
-// Create a unique tab ID that persists for this tab only
+// Better WebSocket URL construction with more debugging
+function constructWebSocketUrl() {
+  // Use explicit WS_URL if provided in env
+  if (process.env.REACT_APP_WS_URL) {
+    console.log(`Using explicit WS_URL from env: ${process.env.REACT_APP_WS_URL}`);
+    return process.env.REACT_APP_WS_URL;
+  }
+  
+  // Extract hostname and port from BACKEND_URL
+  let urlObj;
+  try {
+    urlObj = new URL(BACKEND_URL);
+  } catch (error) {
+    console.error(`Invalid BACKEND_URL format: ${BACKEND_URL}`, error);
+    // Fallback to default
+    console.log('Falling back to default WebSocket URL: ws://localhost:8001/ws');
+    return 'ws://localhost:8001/ws';
+  }
+  
+  const host = urlObj.host; // hostname:port
+  const wsUrl = `${WS_PROTOCOL}//${host}/ws`;
+  console.log(`Constructed WebSocket URL: ${wsUrl} from BACKEND_URL: ${BACKEND_URL}`);
+  return wsUrl;
+}
+
+const WS_URL = constructWebSocketUrl();
+// Create a unique tab ID that persists for this tab only with stronger entropy
 // This ensures different browser tabs don't share sessions
-const TAB_ID = `tab_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+const generateTabId = () => {
+  // Combine timestamp, random string, and browser info for better uniqueness
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 10);
+  const browserInfo = navigator.userAgent.split(/[\s/()]+/)[0]; // Extract just browser name
+  return `tab_${timestamp}_${random}_${browserInfo}`;
+};
+
+const TAB_ID = generateTabId();
+
+// Ensure we're not accidentally reusing an existing tab ID
+const existingTabId = sessionStorage.getItem('registerKaroTabId');
+if (existingTabId) {
+  console.log(`Found existing tab ID, replacing: ${existingTabId}`);
+}
 
 // Store tab ID in sessionStorage (only persists for current tab)
 sessionStorage.setItem('registerKaroTabId', TAB_ID);
+console.log(`🆕 Initialized unique tab ID: ${TAB_ID}`);
+
+// IMPORTANT: Clear any device or cookie IDs from previous sessions to force new user creation
+// This prevents incorrect user association with other browser users like "Rahul"
+localStorage.removeItem('deviceId');
+console.log('💥 Cleared cached device ID to ensure proper user isolation');
 console.log(`Initialized unique tab ID: ${TAB_ID}`);
 
 export type MessageType = 'message' | 'follow_up' | 'payment_link' | 'show_document_upload' | 'session_info' | 'set_cookie' | 'typing_indicator' | 'typing_ended' | 'payment_status' | 'check_payment_status';
@@ -69,21 +114,68 @@ class WebSocketService {
     this.isConnecting = true;
     this.notifyStatusChange('connecting');
     
+    // Generate a unique connection attempt ID for tracking in logs
+    const connectionId = Date.now();
+    
     try {
-      console.log(`Connecting to WebSocket at ${WS_URL}`);
+      console.log(`[WS:${connectionId}] Connecting to WebSocket at ${WS_URL}`);
+      console.log(`[WS:${connectionId}] Backend URL is: ${BACKEND_URL}`);
+      console.log(`[WS:${connectionId}] Protocol is: ${WS_PROTOCOL}`);
+      
       this.socket = new WebSocket(WS_URL);
       
-      this.socket.onopen = this.handleOpen.bind(this);
-      this.socket.onmessage = this.handleMessage.bind(this);
-      this.socket.onclose = this.handleClose.bind(this);
-      this.socket.onerror = this.handleError.bind(this);
+      // Enhanced event handlers with connection ID for correlation
+      this.socket.onopen = () => {
+        console.log(`[WS:${connectionId}] WebSocket connection OPENED successfully`);
+        this.handleOpen();
+      };
+      
+      this.socket.onmessage = (event) => {
+        // Only log the first message to avoid spam
+        const isFirstMessage = !this._messageReceived;
+        if (isFirstMessage) {
+          console.log(`[WS:${connectionId}] First message received, connection is WORKING`);
+          this._messageReceived = true;
+        }
+        this.handleMessage(event);
+      };
+      
+      this.socket.onclose = (event) => {
+        console.log(`[WS:${connectionId}] WebSocket CLOSED: code=${event.code}, reason=${event.reason || 'No reason provided'}, clean=${event.wasClean}`);
+        this.handleClose(event);
+      };
+      
+      this.socket.onerror = (event) => {
+        console.error(`[WS:${connectionId}] WebSocket ERROR:`, event);
+        this.handleError(event);
+      };
+      
+      // Set a connection timeout as a safety measure
+      setTimeout(() => {
+        if (this.isConnecting && !this.isConnected && this.socket) {
+          console.error(`[WS:${connectionId}] CONNECTION TIMEOUT after 10 seconds`);
+          
+          // Log network state for debugging
+          console.log(`[WS:${connectionId}] Network state: ${navigator.onLine ? 'ONLINE' : 'OFFLINE'}`);
+          
+          // Close socket and retry
+          this.socket.close();
+          this.isConnecting = false;
+          this.notifyStatusChange('error');
+          this.scheduleReconnect();
+        }
+      }, 10000);
+      
     } catch (error) {
-      console.error('Error creating WebSocket:', error);
+      console.error(`[WS:${connectionId}] Error creating WebSocket:`, error);
       this.isConnecting = false;
       this.notifyStatusChange('error');
       this.scheduleReconnect();
     }
   }
+  
+  // Track if we've received any messages (to avoid console spam)
+  private _messageReceived: boolean = false;
 
   /**
    * Disconnect the WebSocket connection
@@ -569,110 +661,94 @@ class WebSocketService {
    * Send device information to the server
    */
   private sendDeviceInfo(): void {
-    // Get the unique tab ID from sessionStorage to ensure tab isolation
-    const tabId = sessionStorage.getItem('registerKaroTabId') || `tab_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+    console.log(`⚠️ CLEARING ALL COOKIES AND LOCAL STORAGE TO FIX USER IDENTIFICATION ISSUES ⚠️`);
     
-    // Always store/update tab ID in sessionStorage
+    // FIRST: Clear all identifiers in localStorage to prevent cross-user contamination
+    localStorage.removeItem('deviceId');
+    localStorage.removeItem('registerKaroCookieId');
+    localStorage.removeItem('paymentCompleted');
+    
+    // Get the unique tab ID from sessionStorage
+    const tabId = sessionStorage.getItem('registerKaroTabId') || generateTabId();
     sessionStorage.setItem('registerKaroTabId', tabId);
-    console.log(`Using tab ID: ${tabId} (session isolated to this browser tab)`);
+    console.log(`🆔 Using fresh tab ID: ${tabId}`);
     
-    // Try to get existing cookie ID with expiration checking
-    if (!this.cookieId) {
-      try {
-        const storedCookieData = localStorage.getItem('registerKaroCookieId');
-        if (storedCookieData) {
-          const cookieData = JSON.parse(storedCookieData);
-          
-          // Check if cookie is expired (90 days)
-          if (cookieData.expires && cookieData.expires > Date.now()) {
-            this.cookieId = cookieData.id;
-            console.log(`Using valid stored cookie ID: ${this.cookieId}, expires in ${Math.floor((cookieData.expires - Date.now()) / (24 * 60 * 60 * 1000))} days`);
-          } else {
-            console.log(`Cookie expired or invalid, generating new one`);
-            localStorage.removeItem('registerKaroCookieId');
-          }
-        } else {
-          console.log(`No stored cookie found`);
-        }
-      } catch (e) {
-        // Handle case of legacy cookie format or parsing error
-        const legacyCookie = localStorage.getItem('registerKaroCookieId');
-        if (typeof legacyCookie === 'string' && legacyCookie.length > 5) {
-          // Migrate old format to new format
-          this.cookieId = legacyCookie;
-          console.log(`Migrating legacy cookie format: ${this.cookieId}`);
-          
-          // Update to new format
-          const cookieData = {
-            id: this.cookieId,
-            expires: Date.now() + (90 * 24 * 60 * 60 * 1000) // 90 days
-          };
-          localStorage.setItem('registerKaroCookieId', JSON.stringify(cookieData));
-        } else {
-          console.log(`Invalid cookie data or parsing error, will generate new cookie`);
-        }
-      }
-    }
-
-    // Generate new session ID for this tab rather than trying to reuse one
-    // This ensures each tab gets its own session and context
-    this.sessionId = `session_${tabId}`;
+    // Generate completely fresh IDs for everything to ensure isolation
+    
+    // 1. Fresh session ID with timestamp to prevent collisions
+    this.sessionId = `fresh_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     sessionStorage.setItem('chatSessionId', this.sessionId);
-    console.log(`Created new tab-isolated session ID: ${this.sessionId}`);
-
-    // Generate or retrieve device ID
-    if (!this.deviceId) {
-      const storedDeviceId = localStorage.getItem('deviceId');
-      if (storedDeviceId) {
-        this.deviceId = storedDeviceId;
-      } else {
-        this.deviceId = this.generateDeviceId();
-        localStorage.setItem('deviceId', this.deviceId);
-      }
-      console.log(`Using device ID: ${this.deviceId}`);
-    }
-
-    // Reuse the already declared tabId variable
-    // No need to get it again since we already have it from earlier
+    console.log(`🆕 Created completely new session ID: ${this.sessionId}`);
     
-    // Send cookie ID if we have one
-    if (this.cookieId) {
-      this.socket?.send(JSON.stringify({
-        type: 'cookie_id',
-        cookie_id: this.cookieId,
+    // 2. Fresh device ID
+    this.deviceId = `device_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    localStorage.setItem('deviceId', this.deviceId);
+    console.log(`🆕 Created new device ID: ${this.deviceId}`);
+    
+    // 3. Fresh cookie ID
+    this.cookieId = `cookie_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const cookieData = {
+      id: this.cookieId,
+      expires: Date.now() + (90 * 24 * 60 * 60 * 1000) // 90 days
+    };
+    localStorage.setItem('registerKaroCookieId', JSON.stringify(cookieData));
+    console.log(`🆕 Created new cookie ID: ${this.cookieId}`);
+    
+    if (this.socket) {
+      // Tell server to create a new user session - critically important!
+      this.socket.send(JSON.stringify({
+        type: 'new_session',
+        force_new: true,
+        session_id: this.sessionId,
         tab_id: tabId
       }));
-    }
-
-    // Send device ID
-    this.socket?.send(JSON.stringify({
-      type: 'device_id',
-      device_id: this.deviceId,
-      tab_id: tabId
-    }));
-
-    // We no longer send previous session ID to ensure tab isolation
-    // Each tab gets its own fresh session
-
-    // Send detailed client info for better tracking
-    const clientInfo = {
-      device: {
-        device_id: this.deviceId,
+      console.log(`📤 Sent new_session command with force_new=true`);
+      
+      // Send cookie ID with force_new flag
+      this.socket.send(JSON.stringify({
+        type: 'cookie_id',
+        cookie_id: this.cookieId,
+        force_new: true,
         tab_id: tabId,
-        platform: navigator.platform,
-        user_agent: navigator.userAgent.substring(0, 100), // Truncate to avoid too much data
-        screen_size: `${window.screen.width}x${window.screen.height}`,
-        language: navigator.language,
-        last_visit: new Date().toISOString()
-      }
-    };
-
-    this.socket?.send(JSON.stringify({
-      type: 'client_info',
-      client_info: clientInfo,
-      cookie_id: this.cookieId,
-      tab_id: tabId
-    }));
+        reset_user: true  // Tell server to create new user instead of finding existing
+      }));
+      console.log(`📤 Sent cookie_id with force_new=true and reset_user=true`);
+      
+      // Send device ID with force_new flag
+      this.socket.send(JSON.stringify({
+        type: 'device_id',
+        device_id: this.deviceId,
+        force_new: true,
+        tab_id: tabId,
+        reset_user: true  // Tell server to create new user
+      }));
+      console.log(`📤 Sent device_id with force_new=true and reset_user=true`);
+      
+      // Send detailed client info
+      const clientInfo = {
+        device: {
+          device_id: this.deviceId,
+          tab_id: tabId,
+          platform: navigator.platform,
+          user_agent: navigator.userAgent.substring(0, 100),
+          screen_size: `${window.screen.width}x${window.screen.height}`,
+          language: navigator.language,
+          last_visit: new Date().toISOString(),
+          create_new_user: true,  // Important flag for server
+          reset_session: true     // Important flag for server
+        }
+      };
+      
+      this.socket.send(JSON.stringify({
+        type: 'client_info',
+        client_info: clientInfo,
+        cookie_id: this.cookieId,
+        tab_id: tabId,
+        force_new: true,
+        reset_user: true
+      }));
+      console.log(`📤 Sent client_info with all flags to ensure new user creation`);
+    }
   }
 }
 

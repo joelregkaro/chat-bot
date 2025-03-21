@@ -220,14 +220,61 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setPaymentLink(data.link);
         setShowPaymentPopup(true);
       }
-    } else if (data.text &&
-               (data.text.includes("payment has been successfully received") ||
-                data.text.includes("payment has been processed") ||
-                data.text.includes("payment is complete") ||
-                data.text.includes("payment successful"))) {
-      // Auto-detect successful payment in message texts and mark as completed
-      console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] Payment success detected in message, marking payment as completed`);
-      markPaymentCompleted();
+    } else if (data.text) {
+      // Check for payment success patterns
+      if (data.text.includes("payment has been successfully received") ||
+          data.text.includes("payment has been processed") ||
+          data.text.includes("payment is complete") ||
+          data.text.includes("payment successful")) {
+        // Auto-detect successful payment in message texts and mark as completed
+        console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] Payment success detected in message, marking payment as completed`);
+        markPaymentCompleted();
+      }
+      
+      // Check for payment link patterns in message text - CRITICAL NEW FEATURE
+      const hasPaymentKeywords =
+        data.text.toLowerCase().includes("payment") ||
+        data.text.toLowerCase().includes("pay now") ||
+        data.text.toLowerCase().includes("proceed with") ||
+        data.text.toLowerCase().includes("₹") ||
+        data.text.toLowerCase().includes("rs.");
+        
+      // Find any URLs in the message
+      const urlRegex = /(https?:\/\/[^\s]+)/g;
+      const urls = data.text.match(urlRegex);
+      
+      if (hasPaymentKeywords && urls && urls.length > 0) {
+        // Check each URL for payment link patterns
+        for (const url of urls) {
+          // Look for Razorpay links or standard payment patterns
+          if (url.includes("rzp.io") ||
+              url.includes("razorpay") ||
+              url.includes("payment") ||
+              url.includes("pay") ||
+              url.includes("checkout") ||
+              url.includes("rzp_")) {
+                
+            console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] Payment link detected in message: ${url}`);
+            
+            if (!hasCompletedPayment) {
+              // Set the payment link and show popup
+              console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] 🔔 SHOWING PAYMENT POPUP with link: ${url}`);
+              setPaymentLink(url);
+              setShowPaymentPopup(true);
+              
+              // Force a re-render to ensure popup appears
+              setTimeout(() => {
+                if (!showPaymentPopup) {
+                  console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] 🚨 Popup not showing, forcing show`);
+                  setShowPaymentPopup(true);
+                }
+              }, 500);
+              
+              break; // Only handle the first payment link
+            }
+          }
+        }
+      }
     }
   };
 
