@@ -155,7 +155,7 @@ const App = () => {
               </div>
             </div>
           </main>
-          <aside className="hidden md:block md:w-[30%] fixed right-0 top-14 h-[calc(100vh-5rem)] p-4">
+          <aside id="chat-section" className="hidden md:block md:w-[30%] fixed right-0 top-14 h-[calc(100vh-5rem)] p-4">
             <StickyChat />
           </aside>
         </div>

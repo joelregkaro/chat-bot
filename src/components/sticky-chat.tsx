@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
+import { Textarea } from "./ui/textarea"; // Replace Input with Textarea
 import { Send, User, Bot, Sparkles, Clock, X, CreditCard, Loader2 } from "lucide-react";
 import caImage from "../assets/heroImg.png"
 import { useChat } from "../contexts/ChatContext";
@@ -47,6 +47,7 @@ interface StickyChatProps {
 export default function StickyChat({ onClose }: StickyChatProps) {
   const [message, setMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const {
     messages,
     sendMessage: sendChatMessage,
@@ -115,6 +116,31 @@ export default function StickyChat({ onClose }: StickyChatProps) {
   // NO AUTO-TRIGGER - Let user click the button manually
   // This prevents unwanted automatic messages and popup attempts
 
+  // Focus the textarea after each message is received
+  useEffect(() => {
+    // Keep focus on textarea after bot responses
+    if (textareaRef.current && !isLoading) {
+      textareaRef.current.focus();
+    }
+  }, [isLoading, messages]);
+
+  // Handle keyboard events for the textarea
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // If Shift+Enter is pressed, add a newline
+    if (e.key === 'Enter' && e.shiftKey) {
+      // Allow normal behavior (newline)
+      return;
+    }
+    // If just Enter is pressed (without Shift), send the message
+    else if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault(); // Prevent newline
+      if (message.trim()) {
+        sendChatMessage(message);
+        setMessage("");
+      }
+    }
+  };
+
   const handleSendMessage = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!message.trim()) return;
@@ -122,6 +148,13 @@ export default function StickyChat({ onClose }: StickyChatProps) {
     // Send message via chat context
     sendChatMessage(message);
     setMessage("");
+    
+    // Focus the textarea after sending
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    }, 0);
   };
 
   // Load Razorpay script as a promise for better error handling
@@ -566,7 +599,7 @@ export default function StickyChat({ onClose }: StickyChatProps) {
                         : "bg-white text-darkgray border border-gray-200 rounded-tl-none"
                     }`}
                   >
-                    <p className="text-sm">{message.content}</p>
+                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                   </div>
                   <div className="flex items-center text-xs mt-1 text-gray-500">
                     <Clock className="h-3 w-3 mr-1" />
@@ -651,16 +684,19 @@ export default function StickyChat({ onClose }: StickyChatProps) {
       {/* Chat input */}
       <form onSubmit={handleSendMessage} className="p-3 border-t border-gray-100 bg-white">
         <div className="flex gap-2">
-          <Input
+          <Textarea
+            ref={textareaRef}
             value={message}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMessage(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="Type your message here..."
-            className="flex-1 focus-visible:ring-blue"
+            className="flex-1 focus-visible:ring-blue min-h-[60px] resize-y max-h-[150px]"
             disabled={connectionStatus !== 'connected' || isLoading}
+            autoFocus
           />
-          <Button 
+          <Button
             type="submit"
-            className="bg-blue hover:bg-blue/90 text-white"
+            className="bg-blue hover:bg-blue/90 text-white self-end h-[60px]"
             disabled={!message.trim() || connectionStatus !== 'connected' || isLoading}
           >
             <Send className="h-4 w-4" />
