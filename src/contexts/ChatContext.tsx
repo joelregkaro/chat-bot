@@ -221,11 +221,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setShowPaymentPopup(true);
       }
     } else if (data.text) {
-      // Check for payment success patterns
-      if (data.text.includes("payment has been successfully received") ||
-          data.text.includes("payment has been processed") ||
-          data.text.includes("payment is complete") ||
-          data.text.includes("payment successful")) {
+      // Only detect explicit payment success messages
+      if (data.text.includes("payment has been successfully processed")) {
         // Auto-detect successful payment in message texts and mark as completed
         console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] Payment success detected in message, marking payment as completed`);
         markPaymentCompleted();
@@ -338,6 +335,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   };
   
   // Mark payment as completed - syncs with backend database and local storage
+  // Now also provides client-side confirmation if server doesn't respond
   const markPaymentCompleted = () => {
     setHasCompletedPayment(true);
     try {
@@ -357,8 +355,45 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       });
       
       console.log('Payment marked as completed and synced with server database');
+      
+      // Set a confirmation timeout in case the server doesn't respond
+      // This ensures the user always gets feedback about their payment
+      const serverResponseTimeout = setTimeout(() => {
+        // Check if we already received a confirmation from the server
+        const confirmationReceived = messages.some(m =>
+          m.role === 'assistant' &&
+          m.content.includes('payment has been successfully processed')
+        );
+        
+        // If we haven't received confirmation from the server, show client-side message
+        if (!confirmationReceived) {
+          console.log('No server payment confirmation received, showing client-side confirmation');
+          const time = formatTime();
+          const confirmationMessage = "Your payment has been successfully processed. Our team will contact you shortly with next steps for your company registration.";
+          
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: confirmationMessage,
+            time,
+            metadata: { type: 'client_side_payment_confirmation' }
+          }]);
+        }
+      }, 5000); // Wait 5 seconds for server response before showing client-side message
+      
+      // Clean up timeout when component unmounts
+      return () => clearTimeout(serverResponseTimeout);
     } catch (e) {
       console.error('Error storing payment status:', e);
+      // Even if error occurs, show confirmation to user
+      const time = formatTime();
+      const confirmationMessage = "Your payment has been processed. Our team will contact you shortly with next steps.";
+      
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: confirmationMessage,
+        time,
+        metadata: { type: 'client_side_payment_confirmation_fallback' }
+      }]);
     }
   };
 

@@ -4,7 +4,7 @@
  */
 
 // Configurable backend URL - can be overridden via environment variables
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || ' ';
 const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 
 // Better WebSocket URL construction with more debugging
@@ -209,9 +209,29 @@ class WebSocketService {
     if (!this.isConnected) {
       console.log('WebSocket not connected, queueing message');
       this.pendingMessages.push({ type: 'message', text, tab_id: tabId });
+      
+      // Start connection if not already connecting
       if (!this.isConnecting) {
+        console.log('Initiating connection for pending message');
         this.connect();
       }
+      
+      // Check connection status after a short delay and retry if still not connected
+      setTimeout(() => {
+        if (!this.isConnected && this.socket) {
+          console.log('Connection still pending after delay, retrying message send');
+          this.socket?.send(JSON.stringify({
+            type: 'message',
+            text,
+            session_id: this.sessionId,
+            cookie_id: this.cookieId,
+            device_id: this.deviceId,
+            tab_id: tabId,
+            retry: true
+          }));
+        }
+      }, 1000);
+      
       return;
     }
 
@@ -401,23 +421,40 @@ class WebSocketService {
     this.reconnectAttempts = 0;
     this.notifyStatusChange('connected');
 
-    // Send any pending messages
-    if (this.pendingMessages.length > 0) {
-      console.log(`Sending ${this.pendingMessages.length} pending messages`);
-      this.pendingMessages.forEach(msg => {
-        const fullMessage = {
-          ...msg,
-          session_id: this.sessionId,
-          cookie_id: this.cookieId,
-          device_id: this.deviceId
-        };
-        this.socket?.send(JSON.stringify(fullMessage));
-      });
-      this.pendingMessages = [];
-    }
-
-    // Send device fingerprint
+    // Process and send any pending messages with proper session info
+    const processPendingMessages = () => {
+      if (this.pendingMessages.length > 0) {
+        console.log(`Sending ${this.pendingMessages.length} pending messages after connection established`);
+        
+        // Wait a short time to ensure session initialization is complete
+        setTimeout(() => {
+          // Make a copy to avoid mutation issues
+          const messagesToSend = [...this.pendingMessages];
+          this.pendingMessages = [];
+          
+          messagesToSend.forEach(msg => {
+            const fullMessage = {
+              ...msg,
+              session_id: this.sessionId,
+              cookie_id: this.cookieId,
+              device_id: this.deviceId,
+              was_pending: true // Mark as previously pending
+            };
+            console.log(`Sending pending message: ${JSON.stringify(fullMessage).substring(0, 100)}...`);
+            this.socket?.send(JSON.stringify(fullMessage));
+          });
+          
+          console.log('All pending messages sent');
+        }, 500); // Short delay to ensure session is fully established
+      }
+    };
+    
+    // Send device fingerprint first - this establishes the session
     this.sendDeviceInfo();
+    
+    // Process pending messages after a longer delay to ensure session is fully established
+    // This is crucial to fixing the "first message not sent" issue
+    setTimeout(processPendingMessages, 1500);
   }
 
   /**
@@ -437,15 +474,9 @@ class WebSocketService {
       
       console.log(`[WEBSOCKET:${messageTimeId}] Received type=${data.type}, preview="${preview}...", handlers=${this.messageHandlers.length}`);
 
-      // Check for payment completion status from the server
+      // Check for payment completion status from the server - simpler detection
       if (data.payment_completed === true ||
-          (data.type === 'payment_status' && data.payment_status === 'completed') ||
-          (data.type === 'message' && data.text && (
-            data.text.includes("payment has been successfully received") ||
-            data.text.includes("payment has been processed") ||
-            data.text.includes("payment is complete") ||
-            data.text.includes("payment successful")
-          ))) {
+          (data.type === 'payment_status' && data.payment_status === 'completed')) {
         console.log(`[WEBSOCKET:${messageTimeId}] Payment completion detected from server`);
         
         // Store in localStorage for persistence
@@ -457,12 +488,11 @@ class WebSocketService {
         }
       }
 
-      // Check if message indicates payment completed
+      // Simple check if message indicates payment completed by explicit status codes
       if (data.payment_status === 'completed' ||
           data.status === 'completed' ||
-          data.payment_completed === true ||
-          (data.type === 'payment_status' && data.status === 'completed')) {
-        console.log(`[WEBSOCKET:${messageTimeId}] Payment completion detected from server`);
+          data.payment_completed === true) {
+        console.log(`[WEBSOCKET:${messageTimeId}] Payment completion detected from server data properties`);
         
         try {
           localStorage.setItem('paymentCompleted', 'true');
@@ -471,7 +501,8 @@ class WebSocketService {
           console.error('Error storing payment status:', e);
         }
         
-        // Notify all handlers that payment is completed
+        // Notify all handlers that payment is completed - this just updates the state
+        // The backend is responsible for sending any confirmation messages
         this.messageHandlers.forEach(handler => handler({
           type: 'payment_status',
           payment_completed: true,
