@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Send, User, Bot, Sparkles, Clock, X, CreditCard, Loader2 } from "lucide-react";
@@ -22,7 +22,10 @@ interface RazorpayOptions {
   };
   modal?: {
     ondismiss: () => void;
+    escape?: boolean;
+    animation?: boolean;
   };
+  handler?: (response: any) => void;
 }
 
 interface RazorpayInstance {
@@ -62,6 +65,54 @@ export default function StickyChat({ onClose }: StickyChatProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+  
+  // Handle payment link click - defined with useCallback for React Hook dependencies
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const handlePaymentClick = useCallback(async () => {
+    if (paymentLink) {
+      // DON'T close the popup immediately - keep it open until payment is initialized
+      console.log("🔄 Payment button clicked, processing payment link:", paymentLink);
+      
+      // DO NOT auto-send chat messages here - user should see them only if they manually clicked
+      
+      // Attempt to load Razorpay
+      const scriptLoaded = await loadRazorpayScript();
+      console.log(`📜 Razorpay script loaded: ${scriptLoaded}`);
+      
+      try {
+        if (scriptLoaded) {
+          // Initialize Razorpay checkout
+          const success = await initializeRazorpay(paymentLink);
+          
+          // Only close popup after successful initialization
+          if (success) {
+            console.log("✅ Razorpay initialized successfully, now closing popup");
+            closePaymentPopup();
+          } else {
+            console.error("⚠️ Razorpay initialization unsuccessful, keeping popup open");
+          }
+        } else {
+          // Fallback to iframe if script loading fails
+          console.log("⚠️ Falling back to iframe payment method");
+          const iframeSuccess = await openPaymentIframe(paymentLink);
+          
+          // Only close popup on successful iframe creation
+          if (iframeSuccess) {
+            console.log("✅ Payment iframe loaded successfully, now closing popup");
+            closePaymentPopup();
+          }
+        }
+      } catch (error) {
+        console.error("❌ Error during payment processing:", error);
+        // Don't close the popup on error - let user try again
+      }
+    } else {
+      console.error("❌ No payment link available!");
+    }
+  }, [paymentLink, closePaymentPopup]);
+  
+  // NO AUTO-TRIGGER - Let user click the button manually
+  // This prevents unwanted automatic messages and popup attempts
 
   const handleSendMessage = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -72,198 +123,265 @@ export default function StickyChat({ onClose }: StickyChatProps) {
     setMessage("");
   };
 
-  // Handle payment link click with enhanced Razorpay integration
-  const handlePaymentClick = () => {
-    if (paymentLink) {
-      // Load Razorpay script if not already loaded
-      if (!window.Razorpay) {
-        const script = document.createElement('script');
-        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-        script.async = true;
-        document.body.appendChild(script);
-        
-        script.onload = () => {
-          openRazorpayCheckout(paymentLink);
-        };
-      } else {
-        openRazorpayCheckout(paymentLink);
-      }
-      
-      // Notify the agent
-      sendChatMessage("I'm proceeding to make the payment now.");
-      
-      // Close our custom payment popup overlay
-      closePaymentPopup();
-    }
-  };
-  
-  // Function to extract order ID from payment link and open Razorpay checkout
-  const openRazorpayCheckout = (paymentLink: string) => {
-    try {
-      console.log("Opening Razorpay checkout with link:", paymentLink);
-      
-      // Extract order information from the payment link
-      const url = new URL(paymentLink);
-      
-      // Properly handle various Razorpay URL formats
-      let orderId: string | null = null;
-      
-      // First try standard query param approach
-      orderId = url.searchParams.get('order_id');
-      
-      // If that fails, try extracting from the path (format: https://rzp.io/l/RegisterKaro-pay_12345)
-      if (!orderId && url.pathname.includes('/l/RegisterKaro-')) {
-        const pathParts = url.pathname.split('/l/RegisterKaro-');
-        if (pathParts.length > 1) {
-          orderId = pathParts[1];
-          console.log(`Extracted order ID from path: ${orderId}`);
-        }
-      }
-      
-      // If still no order ID, use the entire path as a fallback
-      if (!orderId && url.pathname.includes('/l/')) {
-        const pathParts = url.pathname.split('/l/');
-        if (pathParts.length > 1) {
-          orderId = pathParts[1];
-          console.log(`Using path as order ID: ${orderId}`);
-        }
-      }
-      
-      if (!orderId) {
-        console.error("Failed to extract order_id from payment link:", paymentLink);
-        // Fallback to iframe approach if order_id extraction fails
-        openPaymentIframe(paymentLink);
+  // Load Razorpay script as a promise for better error handling
+  const loadRazorpayScript = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (window.Razorpay) {
+        console.log("✅ Razorpay script already loaded");
+        resolve(true);
         return;
       }
+
+      console.log("📦 Loading Razorpay script...");
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
       
-      // Load Razorpay script if not already loaded
-      if (!window.Razorpay) {
-        const script = document.createElement('script');
-        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-        script.async = true;
-        document.body.appendChild(script);
-        
-        script.onload = () => {
-          console.log("Razorpay script loaded, initializing checkout");
-          initializeRazorpay(orderId as string, paymentLink);
-        };
-        
-        script.onerror = () => {
-          console.error("Failed to load Razorpay script");
-          openPaymentIframe(paymentLink);
-        };
-      } else {
-        console.log("Razorpay already loaded, initializing checkout");
-        initializeRazorpay(orderId, paymentLink);
-      }
-    } catch (error) {
-      console.error("Error opening Razorpay:", error);
-      // Fallback to iframe approach
-      openPaymentIframe(paymentLink);
-    }
-  };
-  
-  // Initialize Razorpay with the extracted order ID
-  const initializeRazorpay = (orderId: string, fallbackLink: string) => {
-    // If payment already completed, don't show new payment form
-    if (hasCompletedPayment) {
-      console.log('Payment already completed, not showing Razorpay checkout');
-      sendChatMessage("Our records show you've already completed payment. If you need assistance with anything else, please let me know.");
-      return;
-    }
-    
-    try {
-      // Configure Razorpay options
-      const options = {
-        key: 'rzp_test_zUaH0H0t4sWFJ8', // Replace with actual key from backend
-        order_id: orderId,
-        name: 'RegisterKaro',
-        description: 'Company Registration Payment',
-        image: 'https://registerkaroonline.com/wp-content/uploads/2023/06/favicon-32x32-1.png',
-        prefill: {
-          name: '',
-          email: '',
-          contact: ''
-        },
-        theme: {
-          color: '#007bff'
-        },
-        modal: {
-          ondismiss: function() {
-            console.log('Payment popup closed without completing payment');
-            sendChatMessage("I see you've closed the payment window. If you need any more information before proceeding with the payment, please let me know.");
-          }
-        },
-        handler: function() {
-          console.log('Payment potentially successful - will verify with backend');
-          markPaymentCompleted(); // Mark payment as completed for future reference
-          sendChatMessage("Great! I'm verifying your payment. This should just take a moment...");
-        }
+      script.onload = () => {
+        console.log("✅ Razorpay script loaded successfully");
+        resolve(true);
       };
       
-      // Open Razorpay checkout
-      const rzp = new (window as any).Razorpay(options);
-      rzp.on('payment.failed', function(response: any) {
-        console.log('Payment failed:', response.error);
-        sendChatMessage("It looks like there was an issue with the payment. Would you like to try again or use a different payment method?");
-      });
+      script.onerror = (error) => {
+        console.error("❌ Failed to load Razorpay script:", error);
+        resolve(false);
+      };
       
-      rzp.open();
-      console.log("Razorpay checkout opened successfully");
+      document.body.appendChild(script);
+    });
+  };
+
+  // Initialize Razorpay with payment link - returns a Promise<boolean>
+  const initializeRazorpay = async (paymentLink: string): Promise<boolean> => {
+    try {
+      console.log("🔄 Processing payment link:", paymentLink);
       
+      // If payment already completed, don't show new payment form
+      if (hasCompletedPayment) {
+        console.log('✅ Payment already completed, not showing payment form again');
+        return true;
+      }
+
+      // Extract order ID from payment link if possible
+      let orderId = '';
+      try {
+        // Try to extract order ID from different URL formats
+        const url = new URL(paymentLink);
+        
+        // Try standard query param first
+        orderId = url.searchParams.get('order_id') || '';
+        
+        // If not found in query params, try to extract from path
+        if (!orderId) {
+          // Check for payment ID in URL path - various formats
+          if (url.pathname.includes('/l/')) {
+            // Format: /l/PAYMENT_ID
+            const pathParts = url.pathname.split('/l/');
+            if (pathParts.length > 1) {
+              orderId = pathParts[1];
+              console.log(`Extracted order ID from path: ${orderId}`);
+            }
+          } else if (url.pathname.includes('/order/')) {
+            // Format: /order/ORDER_ID
+            const orderMatches = url.pathname.match(/\/order\/([a-zA-Z0-9_\-]+)/);
+            if (orderMatches && orderMatches[1]) {
+              orderId = orderMatches[1];
+              console.log(`Extracted order ID from order path: ${orderId}`);
+            }
+          }
+        }
+        
+        console.log(`Using order ID: ${orderId || 'Not available'}`);
+      } catch (error) {
+        console.warn("⚠️ Could not parse payment URL:", error);
+      }
+      
+      // Check if Razorpay script is available
+      if (typeof window.Razorpay !== 'function') {
+        console.error("❌ Razorpay not loaded correctly! Attempting to load it now.");
+        
+        // Try to load Razorpay dynamically if not available
+        try {
+          await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+            script.async = true;
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+          });
+          console.log("✅ Razorpay script loaded dynamically");
+        } catch (loadError) {
+          console.error("❌ Failed to load Razorpay script:", loadError);
+          alert("Unable to load payment system. Please try again later.");
+          return false;
+        }
+      }
+      
+      // Configure Razorpay options
+      let options;
+      
+      // If we have a valid order ID, use that directly
+      if (orderId && orderId.length > 3) {
+        console.log("✅ Using Razorpay SDK with order ID:", orderId);
+        
+        options = {
+          key: 'rzp_test_I98HfDwdi2qQ3T', // Test key
+          order_id: orderId,
+          name: 'RegisterKaro',
+          description: 'Company Registration Payment',
+          image: 'https://registerkaroonline.com/wp-content/uploads/2023/06/favicon-32x32-1.png',
+          prefill: {
+            name: '',
+            email: '',
+            contact: ''
+          },
+          theme: {
+            color: '#007bff'
+          },
+          modal: {
+            ondismiss: function() {
+              console.log('⚠️ Payment popup closed by user');
+            },
+            escape: true,
+            animation: true
+          },
+          handler: function(response: any) {
+            console.log('💰 Payment successful:', response);
+            if (response.razorpay_payment_id) {
+              markPaymentCompleted();
+            }
+          }
+        };
+      } else {
+        // If we don't have an order ID, use a simpler configuration
+        // This is a fallback that might still work in some cases
+        console.log("⚠️ No valid order ID found, using basic configuration");
+        
+        options = {
+          key: 'rzp_test_I98HfDwdi2qQ3T',
+          amount: 500000, // Default to ₹5,000 in paise
+          currency: 'INR',
+          name: 'RegisterKaro',
+          description: 'Company Registration Payment',
+          image: 'https://registerkaroonline.com/wp-content/uploads/2023/06/favicon-32x32-1.png',
+          prefill: {
+            name: '',
+            email: '',
+            contact: ''
+          },
+          modal: {
+            ondismiss: function() {
+              console.log('⚠️ Payment popup closed by user');
+            }
+          },
+          handler: function(response: any) {
+            console.log('💰 Payment successful:', response);
+            if (response.razorpay_payment_id) {
+              markPaymentCompleted();
+            }
+          }
+        };
+      }
+      
+      try {
+        // Create and open Razorpay checkout
+        console.log('⚙️ Creating Razorpay instance with options:', JSON.stringify(options, null, 2));
+        const rzp = new window.Razorpay(options);
+        console.log('✅ Razorpay instance created');
+        
+        // CRITICAL: This opens a popup modal WITHIN the current page
+        // It does NOT navigate away from the page
+        rzp.open();
+        console.log("✅ Razorpay checkout opened as popup");
+        return true;
+      } catch (razorpayError) {
+        console.error("❌ Error creating Razorpay instance:", razorpayError);
+        return false;
+      }
     } catch (error) {
-      console.error("Error initializing Razorpay:", error);
-      // Fallback to iframe approach
-      openPaymentIframe(fallbackLink);
+      console.error("❌ Fatal error in payment processing:", error);
+      return false;
     }
   };
   
-  // Fallback iframe method if direct Razorpay integration fails
-  const openPaymentIframe = (paymentLink: string) => {
-    console.log("Falling back to iframe payment method");
+  // Fallback payment method that uses Razorpay modal popup
+  const openPaymentIframe = (paymentLink: string): Promise<boolean> => {
+    console.log("⚠️ Using fallback payment method with modal popup");
     
-    // Create modal iframe for the Razorpay payment
-    const paymentDiv = document.createElement('div');
-    paymentDiv.style.position = 'fixed';
-    paymentDiv.style.top = '0';
-    paymentDiv.style.left = '0';
-    paymentDiv.style.width = '100%';
-    paymentDiv.style.height = '100%';
-    paymentDiv.style.backgroundColor = 'rgba(0,0,0,0.7)';
-    paymentDiv.style.zIndex = '10000';
-    paymentDiv.style.display = 'flex';
-    paymentDiv.style.alignItems = 'center';
-    paymentDiv.style.justifyContent = 'center';
-    
-    // Create close button
-    const closeButton = document.createElement('button');
-    closeButton.innerText = 'Close';
-    closeButton.style.position = 'absolute';
-    closeButton.style.top = '20px';
-    closeButton.style.right = '20px';
-    closeButton.style.padding = '8px 16px';
-    closeButton.style.backgroundColor = '#fff';
-    closeButton.style.border = 'none';
-    closeButton.style.borderRadius = '4px';
-    closeButton.style.cursor = 'pointer';
-    closeButton.onclick = () => document.body.removeChild(paymentDiv);
-    
-    // Create iframe for payment
-    const iframe = document.createElement('iframe');
-    iframe.src = paymentLink;
-    iframe.style.width = '90%';
-    iframe.style.height = '90%';
-    iframe.style.border = 'none';
-    iframe.style.borderRadius = '8px';
-    iframe.style.backgroundColor = 'white';
-    
-    // Add elements to DOM
-    paymentDiv.appendChild(iframe);
-    paymentDiv.appendChild(closeButton);
-    document.body.appendChild(paymentDiv);
-    
-    // Inform user about the payment iframe
-    sendChatMessage("I've opened the payment window for you. Once payment is complete, you can return to this chat.");
+    return new Promise(async (resolve) => {
+      try {
+        // Create a simpler Razorpay checkout without needing an order ID
+        const options = {
+          key: 'rzp_test_I98HfDwdi2qQ3T',
+          amount: 500000, // Default to ₹5,000 in paise
+          currency: 'INR',
+          name: 'RegisterKaro',
+          description: 'Company Registration Payment',
+          image: 'https://registerkaroonline.com/wp-content/uploads/2023/06/favicon-32x32-1.png',
+          notes: {
+            payment_link: paymentLink // Store original link for reference
+          },
+          prefill: {
+            name: 'User',
+            email: '',
+            contact: ''
+          },
+          theme: {
+            color: '#007bff'
+          },
+          modal: {
+            ondismiss: function() {
+              console.log('⚠️ Fallback payment popup closed by user');
+              resolve(false);
+            },
+            escape: true,
+            animation: true
+          },
+          handler: function(response: any) {
+            console.log('💰 Fallback payment successful:', response);
+            if (response.razorpay_payment_id) {
+              markPaymentCompleted();
+              resolve(true);
+            } else {
+              resolve(false);
+            }
+          }
+        };
+        
+        // Make sure Razorpay is loaded
+        if (typeof window.Razorpay !== 'function') {
+          console.log('⚠️ Razorpay not available for fallback, attempting to load it now');
+          try {
+            await new Promise((resolveScript, rejectScript) => {
+              const script = document.createElement('script');
+              script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+              script.async = true;
+              script.onload = resolveScript;
+              script.onerror = rejectScript;
+              document.head.appendChild(script);
+            });
+            console.log('✅ Razorpay loaded successfully for fallback');
+          } catch (err) {
+            console.error('❌ Failed to load Razorpay for fallback:', err);
+            alert('Unable to load payment system. Please try again later.');
+            resolve(false);
+            return;
+          }
+        }
+        
+        // Create and open Razorpay instance as a popup
+        console.log('🔄 Creating fallback Razorpay instance with popup');
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+        console.log('✅ Opened fallback Razorpay popup');
+        
+      } catch (error) {
+        console.error("❌ Error in fallback payment method:", error);
+        alert("Unable to process payment. Please try again later.");
+        resolve(false);
+      }
+    });
   };
 
   return (
@@ -435,7 +553,7 @@ export default function StickyChat({ onClose }: StickyChatProps) {
         <div className="flex gap-2">
           <Input
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMessage(e.target.value)}
             placeholder="Type your message here..."
             className="flex-1 focus-visible:ring-blue"
             disabled={connectionStatus !== 'connected' || isLoading}
