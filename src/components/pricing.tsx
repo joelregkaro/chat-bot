@@ -19,7 +19,7 @@ export default function Pricing() {
     },
     {
       name: "Standard",
-      price: "₹3,999",
+      price: "₹9,999",
       description: "Most popular for growing businesses",
       features: [
         "Everything in Basic",
@@ -34,7 +34,7 @@ export default function Pricing() {
     },
     {
       name: "Premium",
-      price: "₹7,999",
+      price: "₹12,999",
       description: "Complete solution for established businesses",
       features: [
         "Everything in Standard",

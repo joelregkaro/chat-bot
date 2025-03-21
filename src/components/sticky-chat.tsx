@@ -4,6 +4,7 @@ import { Input } from "./ui/input";
 import { Send, User, Bot, Sparkles, Clock, X, CreditCard, Loader2 } from "lucide-react";
 import caImage from "../assets/heroImg.png"
 import { useChat } from "../contexts/ChatContext";
+import webSocketService from "../services/WebSocketService";
 
 // Declare Razorpay type for TypeScript
 interface RazorpayOptions {
@@ -242,6 +243,43 @@ export default function StickyChat({ onClose }: StickyChatProps) {
           modal: {
             ondismiss: function() {
               console.log('⚠️ Payment popup closed by user');
+              // Add a message to the chat about cancelled payment
+              // Use a more neutral message that doesn't assume intent
+              const message = "I notice you've closed the payment window. If you have any questions before proceeding with the payment, I'm here to help. Alternatively, if you'd like to continue with the registration, we can try the payment again.";
+              
+              sendChatMessage(message);
+              
+              // Create a function to handle cancellation notification
+              const notifyCancellation = () => {
+                // Log the WebSocket service is being used
+                console.log('Notifying backend about payment cancellation');
+                
+                try {
+                  // Get the current session ID, cookie ID, and device ID
+                  const currentSessionId = webSocketService.getSessionId() || '';
+                  const currentCookieId = webSocketService.getCookieId() || '';
+                  const currentDeviceId = webSocketService.getDeviceId() || '';
+                  
+                  // Notify backend about cancellation
+                  webSocketService.sendToServer({
+                    type: 'payment_status',
+                    payment_completed: false,
+                    payment_status: 'cancelled',
+                    status: 'cancelled',
+                    session_id: currentSessionId,
+                    cookie_id: currentCookieId,
+                    device_id: currentDeviceId,
+                    timestamp: new Date().toISOString()
+                  });
+                  
+                  console.log('Successfully notified backend about cancellation');
+                } catch (error) {
+                  console.error('Failed to notify backend about cancellation:', error);
+                }
+              };
+              
+              // Call the function to notify cancellation
+              notifyCancellation();
             },
             escape: true,
             animation: true
@@ -249,7 +287,12 @@ export default function StickyChat({ onClose }: StickyChatProps) {
           handler: function(response: any) {
             console.log('💰 Payment successful:', response);
             if (response.razorpay_payment_id) {
+              // Mark payment as completed in the system
               markPaymentCompleted();
+              
+              // Send a more detailed confirmation message to the user
+              // This will appear immediately while waiting for server confirmation
+              sendChatMessage("I've received confirmation of your payment! I'm updating your records now and will provide next steps for your company registration shortly.");
             }
           }
         };
@@ -333,6 +376,42 @@ export default function StickyChat({ onClose }: StickyChatProps) {
           modal: {
             ondismiss: function() {
               console.log('⚠️ Fallback payment popup closed by user');
+              // Add a message to the chat about cancelled payment with improved wording
+              const message = "I notice you've closed the payment window. If you have any questions before proceeding with the payment, I'm here to help. Alternatively, if you'd like to continue with the registration, we can try the payment again.";
+              
+              sendChatMessage(message);
+              
+              // Create a function to handle cancellation notification
+              const notifyCancellation = () => {
+                console.log('Notifying backend about fallback payment cancellation');
+                
+                try {
+                  // Get the current session ID, cookie ID, and device ID
+                  const currentSessionId = webSocketService.getSessionId() || '';
+                  const currentCookieId = webSocketService.getCookieId() || '';
+                  const currentDeviceId = webSocketService.getDeviceId() || '';
+                  
+                  // Notify backend about cancellation
+                  webSocketService.sendToServer({
+                    type: 'payment_status',
+                    payment_completed: false,
+                    payment_status: 'cancelled',
+                    status: 'cancelled',
+                    session_id: currentSessionId,
+                    cookie_id: currentCookieId,
+                    device_id: currentDeviceId,
+                    timestamp: new Date().toISOString()
+                  });
+                  
+                  console.log('Successfully notified backend about fallback cancellation');
+                } catch (error) {
+                  console.error('Failed to notify backend about fallback cancellation:', error);
+                }
+              };
+              
+              // Call the function to notify cancellation
+              notifyCancellation();
+              
               resolve(false);
             },
             escape: true,
@@ -341,7 +420,13 @@ export default function StickyChat({ onClose }: StickyChatProps) {
           handler: function(response: any) {
             console.log('💰 Fallback payment successful:', response);
             if (response.razorpay_payment_id) {
+              // Mark payment as completed in the system
               markPaymentCompleted();
+              
+              // Send a more detailed confirmation message to the user
+              // This will appear immediately while waiting for server confirmation
+              sendChatMessage("I've received confirmation of your payment! I'm updating your records now and will provide next steps for your company registration shortly.");
+              
               resolve(true);
             } else {
               resolve(false);
@@ -568,10 +653,10 @@ export default function StickyChat({ onClose }: StickyChatProps) {
         </div>
         <p className="text-xs text-gray-500 mt-2">
           {connectionStatus === 'connected' ? 
-            'Connected to AI assistant • Responses typically within 5 seconds' : 
+            'Connected to our Expert• Responses typically within 5 seconds' : 
             connectionStatus === 'connecting' ? 
-            'Connecting to AI assistant...' : 
-            'Disconnected - Unable to reach the assistant'}
+            'Connecting you with our experts...' : 
+            'Disconnected - Unable to reach our experts'}
         </p>
       </form>
     </div>
