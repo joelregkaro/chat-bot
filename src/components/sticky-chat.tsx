@@ -290,9 +290,16 @@ export default function StickyChat({ onClose }: StickyChatProps) {
               // Mark payment as completed in the system
               markPaymentCompleted();
               
-              // Send a more detailed confirmation message to the user
-              // This will appear immediately while waiting for server confirmation
-              sendChatMessage("I've received confirmation of your payment! I'm updating your records now and will provide next steps for your company registration shortly.");
+              // Send a simple confirmation message - server will handle detailed confirmation
+              // Just inform the user that payment was successful
+              sendChatMessage("Your payment has been successfully processed.");
+              
+              // Clear localStorage paymentCompleted on successful payment
+              try {
+                localStorage.removeItem('paymentCompleted');
+              } catch (e) {
+                console.error('Error removing paymentCompleted from localStorage:', e);
+              }
             }
           }
         };
@@ -376,10 +383,9 @@ export default function StickyChat({ onClose }: StickyChatProps) {
           modal: {
             ondismiss: function() {
               console.log('⚠️ Fallback payment popup closed by user');
-              // Add a message to the chat about cancelled payment with improved wording
-              const message = "I notice you've closed the payment window. If you have any questions before proceeding with the payment, I'm here to help. Alternatively, if you'd like to continue with the registration, we can try the payment again.";
               
-              sendChatMessage(message);
+              // No need to send a message - the server will handle it
+              // Let the server generate the message to avoid duplicates
               
               // Create a function to handle cancellation notification
               const notifyCancellation = () => {
@@ -403,9 +409,12 @@ export default function StickyChat({ onClose }: StickyChatProps) {
                     timestamp: new Date().toISOString()
                   });
                   
-                  console.log('Successfully notified backend about fallback cancellation');
+                  console.log('Successfully notified backend about payment cancellation');
                 } catch (error) {
-                  console.error('Failed to notify backend about fallback cancellation:', error);
+                  console.error('Failed to notify backend about payment cancellation:', error);
+                  
+                  // Only in case of network error, show a local message
+                  sendChatMessage("Payment window was closed. Let me know if you'd like to try again.");
                 }
               };
               
@@ -423,9 +432,15 @@ export default function StickyChat({ onClose }: StickyChatProps) {
               // Mark payment as completed in the system
               markPaymentCompleted();
               
-              // Send a more detailed confirmation message to the user
-              // This will appear immediately while waiting for server confirmation
-              sendChatMessage("I've received confirmation of your payment! I'm updating your records now and will provide next steps for your company registration shortly.");
+              // Send a simple confirmation message - server will handle detailed confirmation
+              sendChatMessage("Your payment has been successfully processed.");
+              
+              // Clear localStorage paymentCompleted on successful payment
+              try {
+                localStorage.removeItem('paymentCompleted');
+              } catch (e) {
+                console.error('Error removing paymentCompleted from localStorage:', e);
+              }
               
               resolve(true);
             } else {

@@ -474,41 +474,30 @@ class WebSocketService {
       
       console.log(`[WEBSOCKET:${messageTimeId}] Received type=${data.type}, preview="${preview}...", handlers=${this.messageHandlers.length}`);
 
-      // Check for payment completion status from the server - simpler detection
-      if (data.payment_completed === true ||
-          (data.type === 'payment_status' && data.payment_status === 'completed')) {
-        console.log(`[WEBSOCKET:${messageTimeId}] Payment completion detected from server`);
-        
-        // Store in localStorage for persistence
-        try {
-          localStorage.setItem('paymentCompleted', 'true');
-          console.log('Payment marked as completed - synced from server');
-        } catch (e) {
-          console.error('Error storing payment status:', e);
+      // ONLY process official payment_status messages from server (DB is source of truth)
+      if (data.type === 'payment_status') {
+        // Handle completion
+        if (data.payment_completed === true || data.payment_status === 'completed' || data.status === 'completed') {
+          console.log(`[WEBSOCKET:${messageTimeId}] Payment completion detected from server database`);
+          
+          // Just relay the server message - don't add any logic here
+          // The message passed directly to all handlers without modification
+          this.messageHandlers.forEach(handler => handler(data));
         }
-      }
-
-      // Simple check if message indicates payment completed by explicit status codes
-      if (data.payment_status === 'completed' ||
-          data.status === 'completed' ||
-          data.payment_completed === true) {
-        console.log(`[WEBSOCKET:${messageTimeId}] Payment completion detected from server data properties`);
-        
-        try {
-          localStorage.setItem('paymentCompleted', 'true');
-          console.log(`[WEBSOCKET:${messageTimeId}] Stored payment completion in localStorage`);
-        } catch (e) {
-          console.error('Error storing payment status:', e);
+        // Handle cancellation
+        else if (data.payment_status === 'cancelled' || data.status === 'cancelled') {
+          console.log(`[WEBSOCKET:${messageTimeId}] Payment CANCELLATION detected from server`);
+          
+          // Just relay the cancellation message to handlers
+          this.messageHandlers.forEach(handler => handler(data));
         }
-        
-        // Notify all handlers that payment is completed - this just updates the state
-        // The backend is responsible for sending any confirmation messages
-        this.messageHandlers.forEach(handler => handler({
-          type: 'payment_status',
-          payment_completed: true,
-          status: 'completed',
-          messageId: `payment_${messageTimeId}`
-        } as WebSocketResponse));
+        else {
+          // Any other payment status (pending, etc)
+          console.log(`[WEBSOCKET:${messageTimeId}] Payment status update: ${data.payment_status || data.status}`);
+          
+          // Pass through the status update
+          this.messageHandlers.forEach(handler => handler(data));
+        }
       }
 
       // Handle session info

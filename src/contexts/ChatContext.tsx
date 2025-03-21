@@ -221,12 +221,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setShowPaymentPopup(true);
       }
     } else if (data.text) {
-      // Only detect explicit payment success messages
-      if (data.text.includes("payment has been successfully processed")) {
-        // Auto-detect successful payment in message texts and mark as completed
-        console.log(`[CHAT_CONTEXT:${contextId.current}:${handlerTimeId}] Payment success detected in message, marking payment as completed`);
-        markPaymentCompleted();
-      }
+      // REMOVED: No longer auto-detect payment success from message text
+      // We should only rely on explicit payment_status messages from the server
       
       // Check for payment link patterns in message text - CRITICAL NEW FEATURE
       const hasPaymentKeywords =
@@ -334,65 +330,47 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     setShowPaymentPopup(false);
   };
   
-  // Mark payment as completed - syncs with backend database and local storage
-  // Now also provides client-side confirmation if server doesn't respond
+  // Mark payment as completed - forwards the status to the database
+  // The server/database is the ONLY source of truth for payment status
   const markPaymentCompleted = () => {
-    setHasCompletedPayment(true);
+    console.log('Marking payment as completed - syncing with database');
+    
     try {
-      // Store in localStorage as a cache
-      localStorage.setItem('paymentCompleted', 'true');
+      // Set the state optimistically, server will confirm
+      setHasCompletedPayment(true);
       
-      // Sync with server database for persistence across devices and sessions
-      // This ensures the payment status is stored in MongoDB and persists even if localStorage is cleared
+      // Get all ID information
+      const sessionId = webSocketService.getSessionId() || '';
+      const cookieId = webSocketService.getCookieId() || '';
+      const deviceId = webSocketService.getDeviceId() || '';
+      
+      // Send payment status to server database
       webSocketService.sendToServer({
         type: 'payment_status',
         payment_completed: true,
         payment_status: 'completed',
-        session_id: webSocketService.getSessionId(),
-        cookie_id: webSocketService.getCookieId(),
-        device_id: webSocketService.getDeviceId(),
+        status: 'completed',
+        payment_id: Date.now().toString(), // Generate a timestamp-based ID if we don't have one
+        session_id: sessionId,
+        cookie_id: cookieId,
+        device_id: deviceId,
         timestamp: new Date().toISOString()
       });
       
-      console.log('Payment marked as completed and synced with server database');
+      console.log('Payment status sent to server database - server will confirm');
       
-      // Set a confirmation timeout in case the server doesn't respond
-      // This ensures the user always gets feedback about their payment
-      const serverResponseTimeout = setTimeout(() => {
-        // Check if we already received a confirmation from the server
-        const confirmationReceived = messages.some(m =>
-          m.role === 'assistant' &&
-          m.content.includes('payment has been successfully processed')
-        );
-        
-        // If we haven't received confirmation from the server, show client-side message
-        if (!confirmationReceived) {
-          console.log('No server payment confirmation received, showing client-side confirmation');
-          const time = formatTime();
-          const confirmationMessage = "Your payment has been successfully processed. Our team will contact you shortly with next steps for your company registration.";
-          
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: confirmationMessage,
-            time,
-            metadata: { type: 'client_side_payment_confirmation' }
-          }]);
-        }
-      }, 5000); // Wait 5 seconds for server response before showing client-side message
-      
-      // Clean up timeout when component unmounts
-      return () => clearTimeout(serverResponseTimeout);
+      // Server is responsible for sending confirmation messages
+      // We don't add confirmation messages locally anymore to prevent duplication
     } catch (e) {
-      console.error('Error storing payment status:', e);
-      // Even if error occurs, show confirmation to user
-      const time = formatTime();
-      const confirmationMessage = "Your payment has been processed. Our team will contact you shortly with next steps.";
+      console.error('Error sending payment status to server:', e);
       
+      // Only in case of network error, show a fallback message
+      const time = formatTime();
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: confirmationMessage,
+        content: "Your payment appears to have been processed. Our system will update shortly.",
         time,
-        metadata: { type: 'client_side_payment_confirmation_fallback' }
+        metadata: { type: 'payment_error_message' }
       }]);
     }
   };
