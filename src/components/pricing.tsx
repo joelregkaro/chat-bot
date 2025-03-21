@@ -1,7 +1,22 @@
 import { Check } from "lucide-react"
 import { Button } from "./ui/button"
+import { useChat } from "../contexts/ChatContext"
 
 export default function Pricing() {
+  // Use the chat context to send messages to the chat
+  const { sendMessage } = useChat();
+  
+  // Function to handle plan selection
+  const handleSelectPlan = (plan: any) => {
+    // Send message with plan details to the chat
+    sendMessage(`I'm interested in the ${plan.name} plan for ${plan.price}. Please help me get started with this package.`);
+    
+    // Scroll to the chat section
+    const chatElement = document.getElementById('chat-section');
+    if (chatElement) {
+      chatElement.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
   const plans = [
     {
       name: "Basic",
@@ -96,6 +111,7 @@ export default function Pricing() {
 
               <div className="mt-auto text-center">
                 <Button
+                  onClick={() => handleSelectPlan(plan)}
                   className={`w-full py-6 ${
                     plan.highlight ? "bg-orange hover:bg-orange/90" : "bg-blue hover:bg-blue/90"
                   } rounded-lg shadow-sm transition-all duration-300 transform hover:scale-105`}
