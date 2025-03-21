@@ -279,7 +279,7 @@ export default function StickyChat({ onClose }: StickyChatProps) {
                   {message.role === "user" ? (
                     <User className="h-4 w-4 text-white" />
                   ) : (
-                    <Bot className="h-4 w-4 text-white" />
+                    <img src={caImage} alt="CA Amit Aggrawal" className="h-4 w-4 rounded-full" />
                   )}
                 </div>
                 <div>

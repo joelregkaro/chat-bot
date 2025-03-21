@@ -2,16 +2,25 @@ import { Link } from 'react-router-dom';
 import { ChevronDown, Phone, Menu, X } from "lucide-react"
 import { Button } from "./ui/button"
 import { useState } from "react"
+
 export default function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  const scrollToSection = (sectionId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+    setIsMobileMenuOpen(false);
+  };
+
   const scrollToTop = (e: React.MouseEvent) => {
     e.preventDefault();
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth'
-    });
-    setIsMobileMenuOpen(false);
+        window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
   };
 
   return (
@@ -36,20 +45,27 @@ export default function Header() {
           </div>
         </div>
         <nav className="hidden md:flex items-center space-x-6">
-          <Link to="/" onClick={scrollToTop} className="text-[#1B3654] hover:text-[#FCA229] font-medium transition-colors">
+          <Link to="/" onClick={scrollToTop}  className="text-[#1B3654] hover:text-[#FCA229] font-medium transition-colors">
             Home
           </Link>
-          <div className="relative group">
-            <Link to="/process" className="text-[#1B3654] hover:text-[#FCA229] font-medium transition-colors flex items-center">
+          <button 
+            onClick={(e) => scrollToSection('process', e)}
+            className="text-[#1B3654] hover:text-[#FCA229] font-medium transition-colors"
+          >
             Process
-            </Link>
-          </div>
-          <Link to="/benefits" className="text-[#1B3654] hover:text-[#FCA229] font-medium transition-colors">
-          Benefits
-          </Link>
-          <Link to="/pricing" className="text-[#1B3654] hover:text-[#FCA229] font-medium transition-colors">
-          Pricing
-          </Link>
+          </button>
+          <button 
+            onClick={(e) => scrollToSection('benefits', e)}
+            className="text-[#1B3654] hover:text-[#FCA229] font-medium transition-colors"
+          >
+            Benefits
+          </button>
+          <button 
+            onClick={(e) => scrollToSection('pricing', e)}
+            className="text-[#1B3654] hover:text-[#FCA229] font-medium transition-colors"
+          >
+            Pricing
+          </button>
           {/* <Link href="#" className="text-darkgray hover:text-blue font-medium transition-colors">
             About Us
           </Link> */}
@@ -72,32 +88,28 @@ export default function Header() {
         <div className="container mx-auto py-4 space-y-4">
           <Link 
             to="/" 
-            onClick={scrollToTop} 
             className="block text-[#1B3654] hover:text-[#FCA229] font-medium transition-colors py-2"
           >
             Home
           </Link>
-          <Link 
-            to="/process" 
-            className="block text-[#1B3654] hover:text-[#FCA229] font-medium transition-colors py-2"
-            onClick={() => setIsMobileMenuOpen(false)}
+          <button 
+            onClick={(e) => scrollToSection('process', e)}
+            className="block text-[#1B3654] hover:text-[#FCA229] font-medium transition-colors py-2 w-full text-left"
           >
             Process
-          </Link>
-          <Link 
-            to="/benefits" 
-            className="block text-[#1B3654] hover:text-[#FCA229] font-medium transition-colors py-2"
-            onClick={() => setIsMobileMenuOpen(false)}
+          </button>
+          <button 
+            onClick={(e) => scrollToSection('benefits', e)}
+            className="block text-[#1B3654] hover:text-[#FCA229] font-medium transition-colors py-2 w-full text-left"
           >
             Benefits
-          </Link>
-          <Link 
-            to="/pricing" 
-            className="block text-[#1B3654] hover:text-[#FCA229] font-medium transition-colors py-2"
-            onClick={() => setIsMobileMenuOpen(false)}
+          </button>
+          <button 
+            onClick={(e) => scrollToSection('pricing', e)}
+            className="block text-[#1B3654] hover:text-[#FCA229] font-medium transition-colors py-2 w-full text-left"
           >
             Pricing
-          </Link>
+          </button>
           <Button className="w-full bg-orange hover:bg-orange/90 rounded-full text-white flex items-center justify-center shadow-md transition-all duration-300 transform hover:scale-105">
             <Phone className="h-4 w-4 mr-2" /> +918447748183
           </Button>
