@@ -1,116 +1,119 @@
-# RegisterKaro Chat Bot Integration Guide
+# RegisterKaro Chat Bot Integration
 
-This document provides information about how the chat frontend integrates with the RegisterKaro agent backend, along with implementation details for key features.
+## Overview
 
-## Key Integration Features
+This document outlines the integration between the frontend chat interface and the RegisterKaro backend sales agent system.
 
-1. **WebSocket Communication**: The frontend communicates with the backend via WebSockets
-2. **Tab-Isolated Sessions**: Each browser tab maintains its own isolated chat session
-3. **Persistent Sessions**: User sessions are stored with 90-day cookie expiration
-4. **Payment Processing**: Seamless integration with Razorpay for payments
-5. **Document Requirements**: Post-payment document requirement display
+## Integration Points
 
-## Frontend-Backend Communication
+### 1. WebSocket Communication
 
-### WebSocket Protocol
+The chat component communicates with the backend agent through a WebSocket connection:
 
-The frontend connects to the backend using a WebSocket connection and exchanges JSON messages. Key message types include:
+- **WebSocket URL**: `ws://<backend-host>/ws`
+- **Connection Flow**:
+  1. Frontend establishes WebSocket connection
+  2. Backend generates session ID and sends it to client
+  3. Client creates device fingerprint and sends it to the server
+  4. Client sends persistent cookie ID (if available) to the server
+  5. Client and server exchange messages
 
-- `message`: Text messages from the user to the agent
-- `session_info`: Session identification from the server
-- `cookie_id`: Cookie-based session persistence
-- `client_info`: Client device and environment information 
-- `payment_link`: Payment link processing
-- `tab_id`: Browser tab identification for isolated sessions
+### 2. Tab Isolation
 
-### Session Management
+Each browser tab gets a unique session to prevent cross-talk:
 
-Sessions are managed through multiple identifiers to ensure both persistence and proper isolation:
+- Each tab generates a unique tab ID stored in sessionStorage
+- Tab ID is included in all WebSocket messages
+- Backend appends tab ID to session IDs for proper isolation
 
-- **Cookie ID**: Stored in localStorage with 90-day expiration for long-term persistence across browser sessions
-- **Session ID**: Unique identifier for each WebSocket connection
-- **Tab ID**: Ensures each browser tab gets its own isolated context
-- **Device ID**: Browser fingerprinting for device identification
+### 3. Payment Integration
 
-## Implementation Details
+Payment processing is integrated securely:
 
-### Tab Isolation
+- Backend server generates Razorpay payment links
+- Frontend renders Razorpay checkout in popup
+- Payment status is synced between frontend and backend
+- Users' payment status persists in the database
+- Payment completion is verified through multiple channels:
+  - Database records (primary source of truth)
+  - Razorpay API verification
+  - Message content detection
+  - LocalStorage caching for performance
 
-Browser tabs are isolated through the following mechanism:
+### 4. User Identification
 
-1. Each tab generates a unique `tab_id` when initialized
-2. This ID is stored in `sessionStorage` (unique to each tab)
-3. The `tab_id` is sent with every message to the backend
-4. The backend appends the `tab_id` to the session ID to create isolated sessions
-5. This prevents cross-talk between tabs while still allowing persistent user identity
+Multiple identifiers help track users across sessions:
 
-### Payment Processing
+- **Device ID**: Generated from browser fingerprint
+- **Cookie ID**: Persistent storage with 90-day expiration
+- **Session ID**: Unique to browser tab session
+- **Phone/Email**: Optional user-provided contact info
 
-Payment processing follows this flow:
+## Backend API Endpoints
 
-1. Backend generates a Razorpay payment link
-2. Frontend receives the link via WebSocket
-3. Frontend opens the payment link in a new tab
-4. After payment, the backend verifies the payment status
-5. Upon successful payment, the backend sends document requirements
+### WebSocket Messages
 
-### Post-Payment Flow
+Messages sent to the websocket endpoint follow this format:
 
-After successful payment:
+```json
+{
+  "type": "message",
+  "text": "Hello, I'm interested in company registration",
+  "session_id": "abc123",
+  "cookie_id": "def456",
+  "device_id": "device_789",
+  "tab_id": "tab_12345"
+}
+```
 
-1. Payment popup closes automatically
-2. Backend confirms payment completion
-3. Backend sends document requirements specific to the company type
-4. User receives notification that our team will contact them shortly
+### Message Types
 
-## Testing the Integration
+#### From Client to Server:
+- `message`: Regular user message
+- `inactive`: User inactivity notification
+- `cookie_id`: Set or update cookie ID
+- `device_id`: Set or update device fingerprint
+- `client_info`: Send device and user details
+- `check_payment_status`: Query for payment status in database
+- `payment_status`: Update payment status in database
 
-1. **Basic Chat**: Ensure messages are sent and received properly
-2. **Multiple Tabs**: Open multiple tabs and verify each maintains its own conversation
-3. **Session Persistence**: Close and reopen browser to verify session persistence
-4. **Payment Flow**: Test the payment flow (using test mode)
+#### From Server to Client:
+- `message`: Regular agent message
+- `follow_up`: Follow-up messages after inactivity
+- `payment_link`: Razorpay payment link
+- `session_info`: Session details
+- `set_cookie`: Tell client to set a cookie
+- `typing_indicator`: Agent is typing
+- `typing_ended`: Agent has stopped typing
+- `payment_status`: Payment status update
 
-## Troubleshooting
+## Running Locally
 
-### Common Issues
+1. Start the backend server:
+```bash
+cd ai-bot-backend/register_karo_agent
+python start_server.py
+```
 
-1. **WebSocket Connection Issues**:
-   - Check network connectivity
-   - Verify backend server is running
-   - Ensure WebSocket endpoint URLs are correct
+2. Start the frontend development server:
+```bash
+cd chat-bot
+npm run dev
+```
 
-2. **Session Problems**:
-   - Clear browser data/cookies if experiencing unexpected behavior
-   - Check browser console for error messages
+3. Access the application at `http://localhost:5173`
 
-3. **Payment Integration Issues**:
-   - Verify Razorpay test keys are configured correctly
-   - Check network logs for payment API communication
+## Testing Tab Isolation
 
-## Recent Fixes
+1. Open the application in multiple browser tabs
+2. Check the console logs to verify unique tab IDs
+3. Verify that conversations in each tab are independent
+4. Test using `test-connection.tsx` to verify tab isolation
 
-### 2025-03-20 Updates
+## Testing Payment Status Persistence
 
-1. **Fixed typing indicator issues**:
-   - Disabled post-message typing indicators
-   - Added better typing indicator handling
-
-2. **Fixed session persistence**:
-   - Implemented 90-day cookie expiration
-   - Added format versioning for future compatibility
-   - Improved error handling for malformed cookies
-
-3. **Fixed payment popup issues**:
-   - Switched to direct new tab opening for payments
-   - Added fallback for popup blockers
-   - Improved payment status checking
-
-4. **Improved tab isolation**:
-   - Implemented session isolation per browser tab
-   - Fixed cross-tab session pollution
-   - Added tab tracking in all WebSocket messages
-
-5. **Updated document flow**:
-   - Removed document upload prompts
-   - Added document requirements information after payment
-   - Improved company-type specific document requirements
+1. Complete a payment in one tab
+2. Open a new tab with the same browser (shares cookie/device ID)
+3. Verify payment status persists across tabs
+4. Try clearing localStorage and verify that database still remembers payment
+5. Test with different devices to verify device ID tracking

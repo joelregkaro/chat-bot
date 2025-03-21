@@ -10,17 +10,24 @@ import RegistrationProcess from "./components/registration-process";
 import StickyChat from "./components/sticky-chat";
 import Testimonials from "./components/testimonials";
 import WhyChooseUs from "./components/why-choose-us";
-import { useEffect, useState, useRef } from 'react';
-import { Beaker, MessageSquare, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { MessageSquare, X } from 'lucide-react';
 import { ChatProvider } from './contexts/ChatContext';
+// Test imports removed
+import Clarity from '@microsoft/clarity';
+
 
 const App = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
   // Add smooth scrolling effect for better user experience
-  // Show the test component for WebSocket connection verification
-  const [showConnectionTest, setShowConnectionTest] = useState(false);
+
+  useEffect(()=>{
+    if (process.env.NODE_ENV === 'production' && process.env.REACT_PROJECT_ID) {
+      Clarity.init(process.env.REACT_PROJECT_ID);
+    }
+  },[])
 
   useEffect(() => {
     // Add intersection observer for fade-in animations
@@ -117,37 +124,7 @@ const App = () => {
           </div>
         )}
 
-       {/* Connection test toggle (development only) */}
-       {process.env.NODE_ENV === 'development' && (
-         <div className="fixed top-20 right-4 z-40">
-           <button
-             onClick={() => setShowConnectionTest(!showConnectionTest)}
-             className={`bg-purple-600 text-white p-2 rounded-full shadow-lg hover:bg-purple-700 flex items-center gap-2`}
-             title="Toggle WebSocket Test"
-           >
-             <Beaker size={18} />
-             <span className="text-xs">Test WS</span>
-           </button>
-         </div>
-       )}
-       
-       {/* WebSocket connection test (only visible when toggled) */}
-       {showConnectionTest && (
-         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-           <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-auto">
-             <div className="flex justify-between items-center mb-4">
-               <h2 className="text-xl font-bold">WebSocket Connection Test</h2>
-               <button
-                 onClick={() => setShowConnectionTest(false)}
-                 className="text-gray-500 hover:text-gray-700"
-               >
-                 <X />
-               </button>
-             </div>
-             {/* <ConnectionTest /> */}
-           </div>
-         </div>
-       )}
+       {/* Test components removed */}
 
         <div className="flex flex-col md:flex-row relative">
           <main className="w-full md:w-[70%]">
