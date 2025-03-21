@@ -11,12 +11,9 @@ import StickyChat from "./components/sticky-chat";
 import Testimonials from "./components/testimonials";
 import WhyChooseUs from "./components/why-choose-us";
 import { useEffect, useRef, useState } from 'react';
-import { MessageSquare, X, Beaker, CreditCard } from 'lucide-react';
+import { MessageSquare, X } from 'lucide-react';
 import { ChatProvider } from './contexts/ChatContext';
-import ConnectionTest from './test-connection';
-import TestPaymentPersistence from './test-payment-persistence';
-import PaymentTriggerTest from './test-payment-trigger';
-import TestPaymentAuto from './test-payment-auto';
+// Test imports removed
 import Clarity from '@microsoft/clarity';
 
 
@@ -25,11 +22,6 @@ const App = () => {
   const chatRef = useRef<HTMLDivElement>(null);
 
   // Add smooth scrolling effect for better user experience
-  // Show the test components for WebSocket connection and payment verification
-  const [showConnectionTest, setShowConnectionTest] = useState(false);
-  const [showPaymentTest, setShowPaymentTest] = useState(false);
-  const [showPaymentTrigger, setShowPaymentTrigger] = useState(false);
-  const [showPaymentAuto, setShowPaymentAuto] = useState(false);
 
   useEffect(()=>{
     if (process.env.NODE_ENV === 'production' && process.env.REACT_PROJECT_ID) {
@@ -132,118 +124,7 @@ const App = () => {
           </div>
         )}
 
-       {/* Dev test toggles */}
-       {process.env.NODE_ENV === 'development' && (
-         <div className="fixed top-20 right-4 z-40 flex flex-col gap-2">
-           <button
-             onClick={() => setShowConnectionTest(!showConnectionTest)}
-             className={`bg-purple-600 text-white p-2 rounded-full shadow-lg hover:bg-purple-700 flex items-center gap-2`}
-             title="Toggle WebSocket Test"
-           >
-             <Beaker size={18} />
-             <span className="text-xs">Test WS</span>
-           </button>
-           
-           <button
-             onClick={() => setShowPaymentTest(!showPaymentTest)}
-             className={`bg-green-600 text-white p-2 rounded-full shadow-lg hover:bg-green-700 flex items-center gap-2`}
-             title="Toggle Payment Test"
-           >
-             <CreditCard size={18} />
-             <span className="text-xs">Test Pay</span>
-           </button>
-           
-           <button
-             onClick={() => setShowPaymentTrigger(!showPaymentTrigger)}
-             className={`bg-orange text-white p-2 rounded-full shadow-lg hover:bg-orange/90 flex items-center gap-2`}
-             title="Toggle Payment Trigger Test"
-           >
-             <CreditCard size={18} />
-             <span className="text-xs">Test Trigger</span>
-           </button>
-           
-           <button
-             onClick={() => setShowPaymentAuto(!showPaymentAuto)}
-             className={`bg-indigo-600 text-white p-2 rounded-full shadow-lg hover:bg-indigo-700 flex items-center gap-2`}
-             title="Toggle Auto Payment Test"
-           >
-             <CreditCard size={18} />
-             <span className="text-xs">Auto Pay</span>
-           </button>
-         </div>
-       )}
-       
-       {/* WebSocket connection test (only visible when toggled) */}
-       {showConnectionTest && (
-         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-           <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-auto">
-             <div className="flex justify-between items-center mb-4">
-               <h2 className="text-xl font-bold">WebSocket Connection Test</h2>
-               <button
-                 onClick={() => setShowConnectionTest(false)}
-                 className="text-gray-500 hover:text-gray-700"
-               >
-                 <X />
-               </button>
-             </div>
-             {/* <ConnectionTest /> */}
-           </div>
-         </div>
-       )}
-       
-       {/* Payment persistence test (only visible when toggled) */}
-       {showPaymentTest && (
-         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-           <div className="bg-white rounded-lg shadow-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-auto">
-             <div className="flex justify-between items-center mb-4">
-               <h2 className="text-xl font-bold">Payment Persistence Test</h2>
-               <button
-                 onClick={() => setShowPaymentTest(false)}
-                 className="text-gray-500 hover:text-gray-700"
-               >
-                 <X />
-               </button>
-             </div>
-             <TestPaymentPersistence />
-           </div>
-         </div>
-       )}
-       
-       {/* Payment trigger test (only visible when toggled) */}
-       {showPaymentTrigger && (
-         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-           <div className="bg-white rounded-lg shadow-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-auto">
-             <div className="flex justify-between items-center mb-4">
-               <h2 className="text-xl font-bold">Payment Trigger Test</h2>
-               <button
-                 onClick={() => setShowPaymentTrigger(false)}
-                 className="text-gray-500 hover:text-gray-700"
-               >
-                 <X />
-               </button>
-             </div>
-             <PaymentTriggerTest />
-           </div>
-         </div>
-       )}
-       
-       {/* Auto Payment test (only visible when toggled) */}
-       {showPaymentAuto && (
-         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-           <div className="bg-white rounded-lg shadow-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-auto">
-             <div className="flex justify-between items-center mb-4">
-               <h2 className="text-xl font-bold">Auto Payment Test</h2>
-               <button
-                 onClick={() => setShowPaymentAuto(false)}
-                 className="text-gray-500 hover:text-gray-700"
-               >
-                 <X />
-               </button>
-             </div>
-             <TestPaymentAuto />
-           </div>
-         </div>
-       )}
+       {/* Test components removed */}
 
         <div className="flex flex-col md:flex-row relative">
           <main className="w-full md:w-[70%]">
