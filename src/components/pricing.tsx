@@ -30,7 +30,7 @@ export default function Pricing() {
         "PAN and TAN",
       ],
       highlight: false,
-      buttonText: "Get Started",
+      buttonText: "Choose Plan",
     },
     {
       name: "Standard",
@@ -60,7 +60,7 @@ export default function Pricing() {
         "Business Advisory Services",
       ],
       highlight: false,
-      buttonText: "Contact Us",
+      buttonText: "Choose Plan",
     },
   ]
 
