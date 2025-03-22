@@ -24,8 +24,20 @@ const App = () => {
   // Add smooth scrolling effect for better user experience
 
   useEffect(()=>{
-    if (process.env.NODE_ENV === 'production' && process.env.REACT_PROJECT_ID) {
-      Clarity.init(process.env.REACT_PROJECT_ID);
+    // Try both naming conventions to be safe
+    const projectId = process.env.REACT_APP_PROJECT_ID || process.env.REACT_PROJECT_ID || "qr8nqnnsww";
+    
+    // Always initialize Clarity in production environment
+    if (process.env.NODE_ENV === 'production') {
+      console.log("Initializing Clarity with project ID:", projectId);
+      try {
+        Clarity.init(projectId);
+        console.log("Clarity initialization completed successfully");
+      } catch (error) {
+        console.error("Clarity initialization failed:", error);
+      }
+    } else {
+      console.log("Clarity initialization skipped - not in production environment");
     }
   },[])
 
