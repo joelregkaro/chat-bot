@@ -703,9 +703,9 @@ export default function StickyChat({ onClose }: StickyChatProps) {
                   <div className="p-3 rounded-lg bg-white text-darkgray border border-gray-200 rounded-tl-none">
                     <div className="flex items-center space-x-1">
                       <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-[bounce_1.4s_infinite] [animation-delay:-0.32s]"></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-[bounce_1.4s_infinite] [animation-delay:-0.16s]"></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-[bounce_1.4s_infinite]"></div>
                       </div>
                     </div>
                   </div>
