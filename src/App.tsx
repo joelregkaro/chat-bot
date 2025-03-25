@@ -1,4 +1,6 @@
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter } from "react-router-dom";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import Benefits from "./components/benefits";
 import DocumentsRequired from "./components/documents-required";
 import ExpertAssistance from "./components/expert-assistance";
@@ -10,12 +12,11 @@ import RegistrationProcess from "./components/registration-process";
 import StickyChat from "./components/sticky-chat";
 import Testimonials from "./components/testimonials";
 import WhyChooseUs from "./components/why-choose-us";
-import { useEffect, useRef, useState } from 'react';
-import { MessageSquare, X } from 'lucide-react';
-import { ChatProvider } from './contexts/ChatContext';
+import { useEffect, useRef, useState } from "react";
+import { MessageSquare, X } from "lucide-react";
+import { ChatProvider } from "./contexts/ChatContext";
 // Test imports removed
-import Clarity from '@microsoft/clarity';
-
+import Clarity from "@microsoft/clarity";
 
 const App = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -23,11 +24,11 @@ const App = () => {
 
   // Add smooth scrolling effect for better user experience
 
-  useEffect(()=>{
-    if (process.env.NODE_ENV === 'production' && process.env.REACT_PROJECT_ID) {
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production" && process.env.REACT_PROJECT_ID) {
       Clarity.init(process.env.REACT_PROJECT_ID);
     }
-  },[])
+  }, []);
 
   useEffect(() => {
     // Add intersection observer for fade-in animations
@@ -35,7 +36,7 @@ const App = () => {
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            entry.target.classList.add('animate-fade-in');
+            entry.target.classList.add("animate-fade-in");
             observer.unobserve(entry.target);
           }
         });
@@ -44,12 +45,12 @@ const App = () => {
     );
 
     // Observe all sections with the fade-in class
-    document.querySelectorAll('.fade-in').forEach((el) => {
+    document.querySelectorAll(".fade-in").forEach((el) => {
       observer.observe(el);
     });
 
     return () => {
-      document.querySelectorAll('.fade-in').forEach((el) => {
+      document.querySelectorAll(".fade-in").forEach((el) => {
         observer.unobserve(el);
       });
     };
@@ -63,11 +64,11 @@ const App = () => {
     };
 
     if (mobileOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [mobileOpen]);
 
@@ -75,11 +76,11 @@ const App = () => {
     <BrowserRouter>
       <ChatProvider>
         <div className="flex flex-col min-h-screen bg-white scroll-smooth">
-        <Header />
-        
-        {/* Progress indicator - fixed position */}
-        <div className="hidden lg:block fixed right-8 top-1/2 transform -translate-y-1/2 z-40">
-          {/* <div className="flex flex-col items-center gap-4">
+          <Header />
+
+          {/* Progress indicator - fixed position */}
+          <div className="hidden lg:block fixed right-8 top-1/2 transform -translate-y-1/2 z-40">
+            {/* <div className="flex flex-col items-center gap-4">
             <div className="w-0.5 h-6 bg-gray-300"></div>
             <div className="w-0.5 h-6 bg-gray-300"></div>
             <div className="w-0.5 h-6 bg-gray-300"></div>
@@ -87,83 +88,92 @@ const App = () => {
             <div className="w-0.5 h-6 bg-gray-300"></div>
             <div className="w-0.5 h-6 bg-gray-300"></div>
           </div> */}
-        </div>
-
-        {/* Social proof banner - appears after some scrolling */}
-        <div className="hidden md:block fixed bottom-0 left-0 right-0 bg-blue text-white py-2 text-center z-30 animate-slide-up">
-          <div className="container mx-auto flex items-center justify-center gap-2 text-sm">
-            <span className="font-medium">Trusted by 50,000+ businesses in Delhi NCR</span>
-            <span className="mx-2">•</span>
-            <span>4.9/5 rating from 10,000+ reviews</span>
-            <span className="mx-2">•</span>
-            <span>24/7 Expert Support</span>
           </div>
-        </div>
 
-        {/* Mobile chat button */}
-        <div className="md:hidden fixed bottom-6 right-6 z-50">
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="bg-blue text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg"
-          >
-            <MessageSquare className="h-6 w-6" />
-            <span className="absolute -top-2 -right-2 bg-orange text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center animate-pulse-slow">
-              1
-            </span>
-          </button>
-        </div>
-
-        {/* Mobile chat overlay */}
-        {mobileOpen && (
-          <div className="md:hidden fixed inset-0 bg-black/50 z-50 flex items-end">
-            <div ref={chatRef} className="bg-white w-full h-[90vh] rounded-t-xl overflow-hidden animate-slide-up-mobile">
-              <div className="h-full">
-                <StickyChat onClose={() => setMobileOpen(false)} />
-              </div>
+          {/* Social proof banner - appears after some scrolling */}
+          <div className="hidden md:block fixed bottom-0 left-0 right-0 bg-blue text-white py-2 text-center z-30 animate-slide-up">
+            <div className="container mx-auto flex items-center justify-center gap-2 text-sm">
+              <span className="font-medium">
+                Trusted by 50,000+ businesses in Delhi NCR
+              </span>
+              <span className="mx-2">•</span>
+              <span>4.9/5 rating from 10,000+ reviews</span>
+              <span className="mx-2">•</span>
+              <span>24/7 Expert Support</span>
             </div>
           </div>
-        )}
 
-       {/* Test components removed */}
+          {/* Mobile chat button */}
+          <div className="md:hidden fixed bottom-6 right-6 z-50">
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="bg-blue text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg"
+            >
+              <MessageSquare className="h-6 w-6" />
+              <span className="absolute -top-2 -right-2 bg-orange text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center animate-pulse-slow">
+                1
+              </span>
+            </button>
+          </div>
 
-        <div className="flex flex-col md:flex-row relative">
-          <main className="w-full md:w-[70%]">
-            <div id="hero" className="fade-in">
-              <Hero />
-            </div>
-            <div className="bg-gradient-to-br from-white via-blue-50/20 via-orange-50/20 to-purple-50/20">
-              <div id="testimonials" className="fade-in">
-                <Testimonials />
-              </div>
-              <div id="documents" className="fade-in">
-                <DocumentsRequired />
-              </div>
-              <div id="process" className="fade-in">
-                <RegistrationProcess />
-              </div>
-              <div id="benefits" className="fade-in">
-                <Benefits />
-              </div>
-              <div id="pricing" className="fade-in">
-                <Pricing />
-              </div>
-              <div id="why-choose-us" className="fade-in">
-                <WhyChooseUs />
-              </div>
-              <div id="expert-assistance" className="fade-in">
-                <ExpertAssistance />
+          {/* Mobile chat overlay */}
+          {mobileOpen && (
+            <div className="md:hidden fixed inset-0 bg-black/50 z-50 flex items-end">
+              <div
+                ref={chatRef}
+                className="bg-white w-full h-[90vh] rounded-t-xl overflow-hidden animate-slide-up-mobile"
+              >
+                <div className="h-full">
+                  <StickyChat onClose={() => setMobileOpen(false)} />
+                </div>
               </div>
             </div>
-          </main>
-          <aside id="chat-section" className="hidden md:block md:w-[30%] fixed right-0 top-14 h-[calc(100vh-5rem)] p-4">
-            <StickyChat />
-          </aside>
+          )}
+
+          {/* Test components removed */}
+
+          <div className="flex flex-col md:flex-row relative">
+            <main className="w-full md:w-[70%]">
+              <div id="hero" className="fade-in">
+                <Hero />
+              </div>
+              <div className="bg-gradient-to-br from-white via-blue-50/20 via-orange-50/20 to-purple-50/20">
+                <div id="testimonials" className="fade-in">
+                  <Testimonials />
+                </div>
+                <div id="pricing" className="fade-in">
+                  <Pricing />
+                </div>
+                <div id="documents" className="fade-in">
+                  <DocumentsRequired />
+                </div>
+                <div id="process" className="fade-in">
+                  <RegistrationProcess />
+                </div>
+                <div id="benefits" className="fade-in">
+                  <Benefits />
+                </div>
+                <div id="why-choose-us" className="fade-in">
+                  <WhyChooseUs />
+                </div>
+                <div id="expert-assistance" className="fade-in">
+                  <ExpertAssistance />
+                </div>
+              </div>
+            </main>
+            <aside
+              id="chat-section"
+              className="hidden md:block md:w-[30%] fixed right-0 top-14 h-[calc(100vh-5rem)] p-4"
+            >
+              <StickyChat />
+            </aside>
+          </div>
+          <Footer />
+          <ToastContainer />
         </div>
-        <Footer />
-      </div>
       </ChatProvider>
     </BrowserRouter>
-  )
-}
+  );
+};
 
 export default App;

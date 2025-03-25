@@ -1,7 +1,15 @@
 import React, { useRef, useState } from "react";
+import { toast } from "react-toastify";
+import { UserPlus, Mail, Phone, Package } from "lucide-react";
+import "react-toastify/dist/ReactToastify.css";
 
-const RegisterForm: React.FC = () => {
+interface RegisterFormProps {
+  onClose: () => void;
+}
+
+const RegisterForm: React.FC<RegisterFormProps> = ({ onClose }) => {
   const formRef = useRef<HTMLFormElement>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -55,163 +63,221 @@ const RegisterForm: React.FC = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validate() && formRef.current) {
-      formRef.current.submit();
+    if (validate()) {
+      setIsSubmitting(true);
+      try {
+        const formDataToSubmit = new FormData();
+        formDataToSubmit.append("SingleLine", formData.name);
+        formDataToSubmit.append("Email", formData.email);
+        formDataToSubmit.append(
+          "PhoneNumber_countrycodeval",
+          formData.phoneCode
+        );
+        formDataToSubmit.append(
+          "PhoneNumber_countrycode",
+          formData.phoneNumber
+        );
+        formDataToSubmit.append("Dropdown", formData.packageType);
+        formDataToSubmit.append("zf_referrer_name", "");
+        formDataToSubmit.append("zf_redirect_url", "");
+        formDataToSubmit.append("zc_gad", "");
+
+        await fetch(
+          "https://forms.zohopublic.in/safeledgerprivatelimited/form/AppRegisterkaroform/formperma/6ZTJYlT6mh-HoEPr1m1VG5kE88RKhOE6a5d8ihs3f2s/htmlRecords/submit",
+          {
+            method: "POST",
+            body: formDataToSubmit,
+            mode: "no-cors",
+            headers: {
+              Accept: "application/json",
+            },
+          }
+        );
+
+        toast.success("Form submitted successfully!", {
+          position: "top-right",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+
+        onClose();
+        setFormData({
+          name: "",
+          email: "",
+          phoneCode: "",
+          phoneNumber: "",
+          packageType: "-Select-",
+        });
+      } catch (error) {
+        toast.error("Something went wrong. Please try again.", {
+          position: "top-right",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
   return (
-    <div className="bg-[#1C3854] flex items-center justify-center h-full">
+    <div className="w-full h-full flex items-center justify-center p-4">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-xl bg-white rounded-2xl shadow-2xl p-8 space-y-6"
+        className="w-full max-w-xl bg-blue-50/80 rounded-3xl shadow-2xl p-8 space-y-8 border border-blue-100"
       >
-        <div className="text-center">
-          <h2 className="text-3xl font-bold text-gray-800 mb-1">
-            Register karo
-          </h2>
-          <p className="text-gray-500 text-sm">
+        <div className="text-center space-y-2">
+          <h2 className="text-4xl font-bold text-blue mb-1">Register karo</h2>
+          <p className="text-[#FCA229] text-sm">
             Fill out the form below to contact us
           </p>
         </div>
 
         {/* Name */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+        <div className="relative">
+          <label className="block text-sm font-medium text-gray-800 mb-2 flex items-center gap-2">
+            <UserPlus className="w-4 h-4 text-blue-600" />
             Name <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
             name="name"
-            className={`w-full px-4 py-2 rounded-lg border ${
-              errors.name ? "border-red-500" : "border-gray-300"
-            } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+            className={`w-full px-4 py-3 rounded-xl bg-white border ${
+              errors.name ? "border-red-400" : "border-blue-200"
+            } text-gray-900 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-all duration-200`}
             value={formData.name}
             onChange={handleChange}
+            placeholder="Enter your name"
           />
           {errors.name && (
-            <p className="text-red-500 text-xs mt-1">{errors.name}</p>
+            <p className="text-red-500 text-xs mt-2">{errors.name}</p>
           )}
         </div>
 
         {/* Email */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+        <div className="relative">
+          <label className="block text-sm font-medium text-gray-800 mb-2 flex items-center gap-2">
+            <Mail className="w-4 h-4 text-blue-600" />
             Email <span className="text-red-500">*</span>
           </label>
           <input
             type="email"
             name="email"
-            className={`w-full px-4 py-2 rounded-lg border ${
-              errors.email ? "border-red-500" : "border-gray-300"
-            } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+            className={`w-full px-4 py-3 rounded-xl bg-white border ${
+              errors.email ? "border-red-400" : "border-blue-200"
+            } text-gray-900 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-all duration-200`}
             value={formData.email}
             onChange={handleChange}
+            placeholder="Enter your email"
           />
           {errors.email && (
-            <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+            <p className="text-red-500 text-xs mt-2">{errors.email}</p>
           )}
         </div>
 
         {/* Phone */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+        <div className="relative">
+          <label className="block text-sm font-medium text-gray-800 mb-2 flex items-center gap-2">
+            <Phone className="w-4 h-4 text-blue-600" />
             Phone <span className="text-red-500">*</span>
           </label>
-          <div className="flex gap-2">
-            <div className="w-1/3">
-              <input
-                type="text"
-                name="phoneCode"
-                placeholder="+91"
-                className={`w-full px-4 py-2 rounded-lg border ${
-                  errors.phoneCode ? "border-red-500" : "border-gray-300"
-                } focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                value={formData.phoneCode}
-                onChange={handleChange}
-              />
-            </div>
-            <div className="w-2/3">
-              <input
-                type="text"
-                name="phoneNumber"
-                placeholder="Phone number"
-                className={`w-full px-4 py-2 rounded-lg border ${
-                  errors.phoneNumber ? "border-red-500" : "border-gray-300"
-                } focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                value={formData.phoneNumber}
-                onChange={handleChange}
-              />
-            </div>
+          <div className="flex gap-3">
+            <input
+              type="text"
+              name="phoneCode"
+              placeholder="+91"
+              className={`w-1/3 px-4 py-3 rounded-xl bg-white border ${
+                errors.phoneCode ? "border-red-400" : "border-blue-200"
+              } text-gray-900 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-all duration-200`}
+              value={formData.phoneCode}
+              onChange={handleChange}
+            />
+            <input
+              type="text"
+              name="phoneNumber"
+              placeholder="Phone number"
+              className={`w-2/3 px-4 py-3 rounded-xl bg-white border ${
+                errors.phoneNumber ? "border-red-400" : "border-blue-200"
+              } text-gray-900 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-all duration-200`}
+              value={formData.phoneNumber}
+              onChange={handleChange}
+            />
           </div>
           {(errors.phoneCode || errors.phoneNumber) && (
-            <p className="text-red-500 text-xs mt-1">
+            <p className="text-red-500 text-xs mt-2">
               {errors.phoneCode || errors.phoneNumber}
             </p>
           )}
         </div>
 
-        {/* Dropdown */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+        {/* Package Type */}
+        <div className="relative">
+          <label className="text-sm font-medium text-gray-800 mb-2 flex items-center gap-2">
+            <Package className="w-4 h-4 text-blue-600" />
             Private Limited Package
           </label>
           <select
             name="packageType"
-            className={`w-full px-4 py-2 rounded-lg border ${
-              errors.packageType ? "border-red-500" : "border-gray-300"
-            } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+            className={`w-full px-4 py-3 rounded-xl bg-white border ${
+              errors.packageType ? "border-red-400" : "border-blue-200"
+            } text-gray-900 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-all duration-200 appearance-none`}
             value={formData.packageType}
             onChange={handleChange}
           >
-            <option>-Select-</option>
-            <option>Basic</option>
-            <option>Standard</option>
-            <option>Premium</option>
+            <option className="bg-white text-gray-900">-Select-</option>
+            <option className="bg-white text-gray-900">Basic</option>
+            <option className="bg-white text-gray-900">Standard</option>
+            <option className="bg-white text-gray-900">Premium</option>
           </select>
           {errors.packageType && (
-            <p className="text-red-500 text-xs mt-1">{errors.packageType}</p>
+            <p className="text-red-500 text-xs mt-2">{errors.packageType}</p>
           )}
         </div>
 
-        {/* Submit */}
-        <div className="text-center pt-2">
+        {/* Submit Button */}
+        <div className="text-center pt-4">
           <button
             type="submit"
-            className="bg-blue-600 text-[#1B3654] font-semibold px-6 py-3 rounded-lg hover:bg-blue-700 transition duration-200 shadow-md"
+            disabled={isSubmitting}
+            className={`w-full bg-blue-900 text-white font-semibold px-8 py-4 rounded-xl transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg ${
+              isSubmitting
+                ? "opacity-75 cursor-not-allowed"
+                : "hover:bg-blue-700 active:scale-[0.98]"
+            }`}
           >
-            Submit
+            {isSubmitting ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    fill="none"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+                Submitting...
+              </span>
+            ) : (
+              "Submit"
+            )}
           </button>
         </div>
-      </form>
-
-      {/* Hidden Zoho Form for Submission */}
-      <form
-        ref={formRef}
-        action="https://forms.zohopublic.in/safeledgerprivatelimited/form/AppRegisterkaroform/formperma/6ZTJYlT6mh-HoEPr1m1VG5kE88RKhOE6a5d8ihs3f2s/htmlRecords/submit"
-        method="POST"
-        acceptCharset="UTF-8"
-        encType="multipart/form-data"
-        className="hidden"
-      >
-        <input type="hidden" name="SingleLine" value={formData.name} />
-        <input type="hidden" name="Email" value={formData.email} />
-        <input
-          type="hidden"
-          name="PhoneNumber_countrycodeval"
-          value={formData.phoneCode}
-        />
-        <input
-          type="hidden"
-          name="PhoneNumber_countrycode"
-          value={formData.phoneNumber}
-        />
-        <input type="hidden" name="Dropdown" value={formData.packageType} />
-        <input type="hidden" name="zf_referrer_name" value="" />
-        <input type="hidden" name="zf_redirect_url" value="" />
-        <input type="hidden" name="zc_gad" value="" />
       </form>
     </div>
   );
