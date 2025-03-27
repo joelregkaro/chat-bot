@@ -6,7 +6,6 @@ import {
   Users,
   CheckCircle2,
 } from "lucide-react";
-import { Dialog, DialogContent, DialogTrigger } from "./ui/dialog";
 import RegisterForm from "./RegisterForm";
 import { useState } from "react";
 
@@ -103,16 +102,12 @@ export default function ExpertAssistance() {
                     Get expert assistance for your business registration
                   </p>
                 </div>
-                <Dialog open={isOpen} onOpenChange={setIsOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="bg-orange hover:bg-orange/90 text-white rounded-full px-8 py-6 text-base font-medium shadow-lg transition-all duration-300 transform hover:scale-105 hover:shadow-xl flex items-center justify-center gap-2 min-w-[200px]">
-                      <MessageSquare className="h-5 w-5" /> Chat With Us
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-6xl p-0 h-[90vh]">
-                    <RegisterForm onClose={() => setIsOpen(false)} />
-                  </DialogContent>
-                </Dialog>
+                <Button
+                  onClick={() => setIsOpen(true)}
+                  className="bg-orange hover:bg-orange/90 text-white rounded-full px-8 py-6 text-base font-medium shadow-lg transition-all duration-300 transform hover:scale-105 hover:shadow-xl flex items-center justify-center gap-2 min-w-[200px]"
+                >
+                  <MessageSquare className="h-5 w-5" /> Chat With Us
+                </Button>
               </div>
             </div>
           </div>
@@ -125,6 +120,17 @@ export default function ExpertAssistance() {
           </div>
         </div>
       </div>
+
+      {/* Register Form Modal */}
+      {isOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50">
+          <div className="relative h-full flex items-end md:items-center justify-center">
+            <div className="w-full max-w-xl mx-auto p-4 md:p-6">
+              <RegisterForm onClose={() => setIsOpen(false)} />
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

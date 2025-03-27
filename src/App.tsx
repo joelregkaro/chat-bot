@@ -30,6 +30,18 @@ const App = () => {
     }
   }, []);
 
+  // Auto-open mobile chat on page load
+  useEffect(() => {
+    const isMobile = window.innerWidth < 768;
+    if (isMobile) {
+      // Small delay to ensure smooth animation
+      const timer = setTimeout(() => {
+        setMobileOpen(true);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   useEffect(() => {
     // Add intersection observer for fade-in animations
     const observer = new IntersectionObserver(
@@ -106,6 +118,7 @@ const App = () => {
           {/* Mobile chat button */}
           <div className="md:hidden fixed bottom-6 right-6 z-50">
             <button
+              data-testid="chat-button"
               onClick={() => setMobileOpen(true)}
               className="bg-blue text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg"
             >
@@ -115,20 +128,6 @@ const App = () => {
               </span>
             </button>
           </div>
-
-          {/* Mobile chat overlay */}
-          {mobileOpen && (
-            <div className="md:hidden fixed inset-0 bg-black/50 z-50 flex items-end">
-              <div
-                ref={chatRef}
-                className="bg-white w-full h-[90vh] rounded-t-xl overflow-hidden animate-slide-up-mobile"
-              >
-                <div className="h-full">
-                  <StickyChat onClose={() => setMobileOpen(false)} />
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Test components removed */}
 
@@ -168,7 +167,25 @@ const App = () => {
               <StickyChat />
             </aside>
           </div>
-          <Footer />
+
+          {/* Mobile chat overlay */}
+          {mobileOpen && (
+            <div className="md:hidden fixed inset-0 bg-black/50 z-50 flex items-end">
+              <div
+                ref={chatRef}
+                className="bg-white w-full h-[85vh] rounded-t-xl overflow-hidden animate-slide-up-mobile"
+              >
+                <div className="h-full">
+                  <StickyChat onClose={() => setMobileOpen(false)} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Footer section with higher z-index to ensure it's above the chat */}
+          <div className="relative z-10">
+            <Footer />
+          </div>
           <ToastContainer />
         </div>
       </ChatProvider>

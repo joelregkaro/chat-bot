@@ -220,12 +220,12 @@ export default function Testimonials() {
                     "
                   </span>
                 </p>
-                <div className="flex items-center text-sm text-darkgray/70 pt-3 border-t border-gray-100">
+                {/* <div className="flex items-center text-sm text-darkgray/70 pt-3 border-t border-gray-100">
                   <span className="font-medium">Tool used:</span>
                   <span className="ml-2 text-blue font-semibold bg-blue/10 px-3 py-1 rounded-full">
                     {testimonial.tool}
                   </span>
-                </div>
+                </div> */}
               </div>
             </div>
           ))}

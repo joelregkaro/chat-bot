@@ -1,20 +1,45 @@
-import { Check } from "lucide-react"
-import { Button } from "./ui/button"
-import { useChat } from "../contexts/ChatContext"
+import { Check } from "lucide-react";
+import { Button } from "./ui/button";
+import { useChat } from "../contexts/ChatContext";
+import { useEffect, useState } from "react";
 
 export default function Pricing() {
   // Use the chat context to send messages to the chat
-  const { sendMessage } = useChat();
-  
+  const { sendMessage, showPaymentPopup, closePaymentPopup } = useChat();
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check if we're on mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
   // Function to handle plan selection
   const handleSelectPlan = (plan: any) => {
     // Send message with plan details to the chat
-    sendMessage(`I'm interested in the ${plan.name} plan for ${plan.price}. Please help me get started with this package.`);
-    
-    // Scroll to the chat section
-    const chatElement = document.getElementById('chat-section');
-    if (chatElement) {
-      chatElement.scrollIntoView({ behavior: 'smooth' });
+    sendMessage(
+      `I'm interested in the ${plan.name} plan for ${plan.price}. Please help me get started with this package.`
+    );
+
+    // On mobile, show the chat popup
+    if (isMobile) {
+      // Find and click the chat button to trigger the popup
+      const chatButton = document.querySelector(
+        '[data-testid="chat-button"]'
+      ) as HTMLElement;
+      if (chatButton) {
+        chatButton.click();
+      }
+    } else {
+      // On desktop, scroll to chat section
+      const chatElement = document.getElementById("chat-section");
+      if (chatElement) {
+        chatElement.scrollIntoView({ behavior: "smooth" });
+      }
     }
   };
   const plans = [
@@ -62,12 +87,17 @@ export default function Pricing() {
       highlight: false,
       buttonText: "Choose Plan",
     },
-  ]
+  ];
 
   return (
-    <section id="pricing" className="py-16 bg-gradient-to-br from-white via-orange-50/30 to-blue-50/30 relative overflow-hidden">
+    <section
+      id="pricing"
+      className="py-16 bg-gradient-to-br from-white via-orange-50/30 to-blue-50/30 relative overflow-hidden"
+    >
       <div className="container mx-auto">
-        <h2 className="text-3xl font-bold text-center mb-4">Transparent Pricing Plans</h2>
+        <h2 className="text-3xl font-bold text-center mb-4">
+          Transparent Pricing Plans
+        </h2>
         <p className="text-center text-darkgray mb-12 max-w-3xl mx-auto">
           Choose the perfect plan for your business needs with no hidden charges
         </p>
@@ -88,11 +118,17 @@ export default function Pricing() {
                 </div>
               )}
               <div className="text-center mb-6">
-                <h3 className={`text-2xl font-bold mb-2 ${plan.highlight ? "text-orange" : "text-blue"}`}>
+                <h3
+                  className={`text-2xl font-bold mb-2 ${
+                    plan.highlight ? "text-orange" : "text-blue"
+                  }`}
+                >
                   {plan.name}
                 </h3>
                 <div className="flex items-center justify-center">
-                  <span className="text-4xl font-bold text-darkgray">{plan.price}</span>
+                  <span className="text-4xl font-bold text-darkgray">
+                    {plan.price}
+                  </span>
                   <span className="text-darkgray ml-2">+ Govt Fee</span>
                 </div>
                 <p className="text-darkgray/70 mt-2">{plan.description}</p>
@@ -102,7 +138,9 @@ export default function Pricing() {
                 {plan.features.map((feature, i) => (
                   <li key={i} className="flex items-start">
                     <Check
-                      className={`h-5 w-5 mr-3 mt-0.5 flex-shrink-0 ${plan.highlight ? "text-orange" : "text-blue"}`}
+                      className={`h-5 w-5 mr-3 mt-0.5 flex-shrink-0 ${
+                        plan.highlight ? "text-orange" : "text-blue"
+                      }`}
                     />
                     <span className="text-darkgray">{feature}</span>
                   </li>
@@ -113,7 +151,9 @@ export default function Pricing() {
                 <Button
                   onClick={() => handleSelectPlan(plan)}
                   className={`w-full py-6 ${
-                    plan.highlight ? "bg-orange hover:bg-orange/90" : "bg-blue hover:bg-blue/90"
+                    plan.highlight
+                      ? "bg-orange hover:bg-orange/90"
+                      : "bg-blue hover:bg-blue/90"
                   } rounded-lg shadow-sm transition-all duration-300 transform hover:scale-105`}
                 >
                   {plan.buttonText}
@@ -125,12 +165,12 @@ export default function Pricing() {
 
         <div className="mt-12 text-center">
           <p className="text-darkgray/70 max-w-2xl mx-auto">
-            All plans include expert assistance, document preparation, and filing with the Registrar of Companies.
-            Government fees are additional and vary based on your company's authorized capital.
+            All plans include expert assistance, document preparation, and
+            filing with the Registrar of Companies. Government fees are
+            additional and vary based on your company's authorized capital.
           </p>
         </div>
       </div>
     </section>
-  )
+  );
 }
-

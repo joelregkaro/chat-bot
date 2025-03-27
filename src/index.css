@@ -4,23 +4,36 @@
 
 /* Base styles */
 body {
-  background-color: #FFF;
-  background-image: 
-    radial-gradient(circle at 25px 25px, rgba(59, 92, 222, 0.02) 2%, transparent 0%),
-    radial-gradient(circle at 75px 75px, rgba(252, 162, 41, 0.02) 2%, transparent 0%);
+  background-color: #fff;
+  background-image: radial-gradient(
+      circle at 25px 25px,
+      rgba(59, 92, 222, 0.02) 2%,
+      transparent 0%
+    ),
+    radial-gradient(
+      circle at 75px 75px,
+      rgba(252, 162, 41, 0.02) 2%,
+      transparent 0%
+    );
   background-size: 100px 100px;
   background-attachment: fixed;
 }
 
 .hero-gradient {
-  background: linear-gradient(110deg, #3F7CBA, #1C3854 60%, #070054, #070054 40%);
+  background: linear-gradient(
+    110deg,
+    #3f7cba,
+    #1c3854 60%,
+    #070054,
+    #070054 40%
+  );
   /* #9F60EE 20% */
   position: relative;
   overflow: hidden;
 }
 
 .hero-gradient::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   right: 0;
@@ -32,9 +45,9 @@ body {
 
 .custom-gradient-page {
   background: linear-gradient(
-    135deg, /* angle of the gradient */
-    var(--light-orange), 
-    var(--blue-50-30), 
+    135deg,
+    /* angle of the gradient */ var(--light-orange),
+    var(--blue-50-30),
     var(--orange-50-30)
   );
 }
@@ -44,7 +57,7 @@ body {
 }
 
 .underline-style::after {
-  content: '';
+  content: "";
   position: absolute;
   bottom: -4px;
   left: 0;
@@ -66,67 +79,67 @@ body {
 
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
- 
+
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
- 
+
     --primary: 222.2 47.4% 11.2%;
     --primary-foreground: 210 40% 98%;
- 
+
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
- 
+
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
- 
+
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
- 
+
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
- 
+
     --radius: 0.5rem;
 
-    --light-orange: #FFB74D; /* example light orange */
+    --light-orange: #ffb74d; /* example light orange */
     --blue-50-30: rgba(219, 234, 254, 0.3); /* blue-50 with 30% opacity */
     --orange-50-30: rgba(255, 237, 213, 0.3); /* orange-50 with 30% opacity */
   }
- 
+
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
- 
+
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
- 
+
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
- 
+
     --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
- 
+
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
- 
+
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
- 
+
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
- 
+
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
- 
+
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
   }
 }
- 
+
 @layer base {
   * {
     @apply border-gray-200;
@@ -152,30 +165,46 @@ body {
   0% {
     transform: translateY(100%);
     opacity: 0;
+    filter: blur(10px);
+  }
+  50% {
+    opacity: 0.5;
+    filter: blur(5px);
   }
   100% {
     transform: translateY(0);
     opacity: 1;
+    filter: blur(0);
   }
 }
 
 .animate-slide-up {
-  animation: slide-up 0.5s ease-out forwards;
+  animation: slide-up 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   animation-delay: 1.5s;
   opacity: 0;
+  will-change: transform, opacity, filter;
 }
 
 @keyframes slide-up-mobile {
   0% {
-    transform: translateY(100%);
+    transform: translateY(100%) scale(0.95);
+    opacity: 0;
+    filter: blur(10px);
+  }
+  50% {
+    opacity: 0.5;
+    filter: blur(5px);
   }
   100% {
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
+    opacity: 1;
+    filter: blur(0);
   }
 }
 
 .animate-slide-up-mobile {
-  animation: slide-up-mobile 0.3s ease-out forwards;
+  animation: slide-up-mobile 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  will-change: transform, opacity, filter;
 }
 
 /* Custom scrollbar */
