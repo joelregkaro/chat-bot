@@ -167,7 +167,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onClose }) => {
         <div className="relative z-10 space-y-5">
           <div className="text-center space-y-2">
             <h2 className="text-4xl font-bold text-[#2A5C92] mb-1">
-              RegisterKaro
+              FREE Expert consultation
             </h2>
             <p className="text-orange text-sm">
               Submit your Details to get an Instant All-inclusive Quote to your
