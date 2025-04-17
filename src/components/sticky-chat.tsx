@@ -219,203 +219,73 @@ export default function StickyChat({ onClose }: StickyChatProps) {
       // Extract order ID from payment link if possible
       let orderId = "";
       try {
-        // Try to extract order ID from different URL formats
         const url = new URL(paymentLink);
-
-        // Try standard query param first
         orderId = url.searchParams.get("order_id") || "";
 
-        // If not found in query params, try to extract from path
         if (!orderId) {
-          // Check for payment ID in URL path - various formats
           if (url.pathname.includes("/l/")) {
-            // Format: /l/PAYMENT_ID
             const pathParts = url.pathname.split("/l/");
             if (pathParts.length > 1) {
               orderId = pathParts[1];
-              console.log(`Extracted order ID from path: ${orderId}`);
-            }
-          } else if (url.pathname.includes("/order/")) {
-            // Format: /order/ORDER_ID
-            const orderMatches = url.pathname.match(
-              /\/order\/([a-zA-Z0-9_\-]+)/
-            );
-            if (orderMatches && orderMatches[1]) {
-              orderId = orderMatches[1];
-              console.log(`Extracted order ID from order path: ${orderId}`);
             }
           }
         }
-
-        console.log(`Using order ID: ${orderId || "Not available"}`);
       } catch (error) {
         console.warn("⚠️ Could not parse payment URL:", error);
       }
 
-      // Check if Razorpay script is available
-      if (typeof window.Razorpay !== "function") {
-        console.error(
-          "❌ Razorpay not loaded correctly! Attempting to load it now."
-        );
-
-        // Try to load Razorpay dynamically if not available
-        try {
-          await new Promise((resolve, reject) => {
-            const script = document.createElement("script");
-            script.src = "https://checkout.razorpay.com/v1/checkout.js";
-            script.async = true;
-            script.onload = resolve;
-            script.onerror = reject;
-            document.head.appendChild(script);
-          });
-          console.log("✅ Razorpay script loaded dynamically");
-        } catch (loadError) {
-          console.error("❌ Failed to load Razorpay script:", loadError);
-          alert("Unable to load payment system. Please try again later.");
-          return false;
-        }
-      }
-
-      // Configure Razorpay options
-      let options;
-
-      // If we have a valid order ID, use that directly
-      if (orderId && orderId.length > 3) {
-        console.log("✅ Using Razorpay SDK with order ID:", orderId);
-
-        options = {
-          key: "rzp_test_I98HfDwdi2qQ3T", // Test key
-          order_id: orderId,
-          name: "RegisterKaro",
-          description: "Company Registration Payment",
-          image:
-            "https://registerkaroonline.com/wp-content/uploads/2023/06/favicon-32x32-1.png",
-          prefill: {
-            name: "",
-            email: "",
-            contact: "",
-          },
-          theme: {
-            color: "#007bff",
-          },
-          modal: {
-            ondismiss: function () {
-              console.log("⚠️ Payment popup closed by user");
-              // Add a message to the chat about cancelled payment
-              // Use a more neutral message that doesn't assume intent
-              const message =
-                "I notice you've closed the payment window. If you have any questions before proceeding with the payment, I'm here to help. Alternatively, if you'd like to continue with the registration, we can try the payment again.";
-
-              sendChatMessage(message);
-
-              // Create a function to handle cancellation notification
-              const notifyCancellation = () => {
-                // Log the WebSocket service is being used
-                console.log("Notifying backend about payment cancellation");
-
-                try {
-                  // Get the current session ID, cookie ID, and device ID
-                  const currentSessionId =
-                    webSocketService.getSessionId() || "";
-                  const currentCookieId = webSocketService.getCookieId() || "";
-                  const currentDeviceId = webSocketService.getDeviceId() || "";
-
-                  // Notify backend about cancellation
-                  webSocketService.sendToServer({
-                    type: "payment_status",
-                    payment_completed: false,
-                    payment_status: "cancelled",
-                    status: "cancelled",
-                    session_id: currentSessionId,
-                    cookie_id: currentCookieId,
-                    device_id: currentDeviceId,
-                    timestamp: new Date().toISOString(),
-                  });
-
-                  console.log(
-                    "Successfully notified backend about cancellation"
-                  );
-                } catch (error) {
-                  console.error(
-                    "Failed to notify backend about cancellation:",
-                    error
-                  );
-                }
-              };
-
-              // Call the function to notify cancellation
-              notifyCancellation();
-            },
-            escape: true,
-            animation: true,
-          },
-          handler: function (response: any) {
-            console.log("💰 Payment successful:", response);
-            if (response.razorpay_payment_id) {
-              // Mark payment as completed in the system
-              markPaymentCompleted();
-
-              // Send a simple confirmation message - server will handle detailed confirmation
-              // Just inform the user that payment was successful
-              sendChatMessage("Your payment has been successfully processed.");
-
-              // Clear localStorage paymentCompleted on successful payment
-              try {
-                localStorage.removeItem("paymentCompleted");
-              } catch (e) {
-                console.error(
-                  "Error removing paymentCompleted from localStorage:",
-                  e
-                );
-              }
-            }
-          },
-        };
-      } else {
-        // If we don't have an order ID, use a simpler configuration
-        // This is a fallback that might still work in some cases
-        console.log("⚠️ No valid order ID found, using basic configuration");
-
-        options = {
-          key: "rzp_test_I98HfDwdi2qQ3T",
-          amount: 500000, // Default to ₹5,000 in paise
-          currency: "INR",
-          name: "RegisterKaro",
-          description: "Company Registration Payment",
-          image:
-            "https://registerkaroonline.com/wp-content/uploads/2023/06/favicon-32x32-1.png",
-          prefill: {
-            name: "",
-            email: "",
-            contact: "",
-          },
-          modal: {
-            ondismiss: function () {
-              console.log("⚠️ Payment popup closed by user");
-            },
-          },
-          handler: function (response: any) {
-            console.log("💰 Payment successful:", response);
-            if (response.razorpay_payment_id) {
-              markPaymentCompleted();
-            }
-          },
-        };
-      }
+      // Configure Razorpay options for inline form
+      const options = {
+        key: "rzp_test_I98HfDwdi2qQ3T",
+        order_id: orderId,
+        name: "RegisterKaro",
+        description: "Company Registration Payment",
+        image:
+          "https://registerkaroonline.com/wp-content/uploads/2023/06/favicon-32x32-1.png",
+        prefill: {
+          name: "",
+          email: "",
+          contact: "",
+        },
+        theme: {
+          color: "#007bff",
+        },
+        handler: function (response: any) {
+          console.log("💰 Payment successful:", response);
+          if (response.razorpay_payment_id) {
+            markPaymentCompleted();
+            sendChatMessage("Your payment has been successfully processed.");
+          }
+        },
+        // Disable popup and use inline form
+        modal: {
+          escape: false,
+          backdropclose: false,
+          animation: false,
+        },
+      };
 
       try {
-        // Create and open Razorpay checkout
-        console.log(
-          "⚙️ Creating Razorpay instance with options:",
-          JSON.stringify(options, null, 2)
-        );
+        // Create Razorpay instance
         const rzp = new window.Razorpay(options);
-        console.log("✅ Razorpay instance created");
 
-        // CRITICAL: This opens a popup modal WITHIN the current page
-        // It does NOT navigate away from the page
-        rzp.open();
-        console.log("✅ Razorpay checkout opened as popup");
+        // Instead of opening as popup, we'll use the inline form
+        const form = document.createElement("form");
+        form.style.display = "none";
+        document.body.appendChild(form);
+
+        // Create a hidden input for the payment button
+        const button = document.createElement("button");
+        button.type = "button";
+        button.onclick = () => {
+          rzp.open();
+          document.body.removeChild(form);
+        };
+        form.appendChild(button);
+
+        // Trigger the payment form
+        button.click();
+
         return true;
       } catch (razorpayError) {
         console.error("❌ Error creating Razorpay instance:", razorpayError);
@@ -427,24 +297,20 @@ export default function StickyChat({ onClose }: StickyChatProps) {
     }
   };
 
-  // Fallback payment method that uses Razorpay modal popup
+  // Fallback payment method that uses inline form
   const openPaymentIframe = (paymentLink: string): Promise<boolean> => {
-    console.log("⚠️ Using fallback payment method with modal popup");
+    console.log("⚠️ Using fallback payment method with inline form");
 
     return new Promise(async (resolve) => {
       try {
-        // Create a simpler Razorpay checkout without needing an order ID
         const options = {
           key: "rzp_test_I98HfDwdi2qQ3T",
-          amount: 500000, // Default to ₹5,000 in paise
+          amount: 500000,
           currency: "INR",
           name: "RegisterKaro",
           description: "Company Registration Payment",
           image:
             "https://registerkaroonline.com/wp-content/uploads/2023/06/favicon-32x32-1.png",
-          notes: {
-            payment_link: paymentLink, // Store original link for reference
-          },
           prefill: {
             name: "User",
             email: "",
@@ -454,80 +320,15 @@ export default function StickyChat({ onClose }: StickyChatProps) {
             color: "#007bff",
           },
           modal: {
-            ondismiss: function () {
-              console.log("⚠️ Fallback payment popup closed by user");
-
-              // No need to send a message - the server will handle it
-              // Let the server generate the message to avoid duplicates
-
-              // Create a function to handle cancellation notification
-              const notifyCancellation = () => {
-                console.log(
-                  "Notifying backend about fallback payment cancellation"
-                );
-
-                try {
-                  // Get the current session ID, cookie ID, and device ID
-                  const currentSessionId =
-                    webSocketService.getSessionId() || "";
-                  const currentCookieId = webSocketService.getCookieId() || "";
-                  const currentDeviceId = webSocketService.getDeviceId() || "";
-
-                  // Notify backend about cancellation
-                  webSocketService.sendToServer({
-                    type: "payment_status",
-                    payment_completed: false,
-                    payment_status: "cancelled",
-                    status: "cancelled",
-                    session_id: currentSessionId,
-                    cookie_id: currentCookieId,
-                    device_id: currentDeviceId,
-                    timestamp: new Date().toISOString(),
-                  });
-
-                  console.log(
-                    "Successfully notified backend about payment cancellation"
-                  );
-                } catch (error) {
-                  console.error(
-                    "Failed to notify backend about payment cancellation:",
-                    error
-                  );
-
-                  // Only in case of network error, show a local message
-                  sendChatMessage(
-                    "Payment window was closed. Let me know if you'd like to try again."
-                  );
-                }
-              };
-
-              // Call the function to notify cancellation
-              notifyCancellation();
-
-              resolve(false);
-            },
-            escape: true,
-            animation: true,
+            escape: false,
+            backdropclose: false,
+            animation: false,
           },
           handler: function (response: any) {
             console.log("💰 Fallback payment successful:", response);
             if (response.razorpay_payment_id) {
-              // Mark payment as completed in the system
               markPaymentCompleted();
-
-              // Send a simple confirmation message - server will handle detailed confirmation
               sendChatMessage("Your payment has been successfully processed.");
-
-              // Clear localStorage paymentCompleted on successful payment
-              try {
-                localStorage.removeItem("paymentCompleted");
-              } catch (e) {
-                console.error(
-                  "Error removing paymentCompleted from localStorage:",
-                  e
-                );
-              }
-
               resolve(true);
             } else {
               resolve(false);
@@ -535,37 +336,25 @@ export default function StickyChat({ onClose }: StickyChatProps) {
           },
         };
 
-        // Make sure Razorpay is loaded
-        if (typeof window.Razorpay !== "function") {
-          console.log(
-            "⚠️ Razorpay not available for fallback, attempting to load it now"
-          );
-          try {
-            await new Promise((resolveScript, rejectScript) => {
-              const script = document.createElement("script");
-              script.src = "https://checkout.razorpay.com/v1/checkout.js";
-              script.async = true;
-              script.onload = resolveScript;
-              script.onerror = rejectScript;
-              document.head.appendChild(script);
-            });
-            console.log("✅ Razorpay loaded successfully for fallback");
-          } catch (err) {
-            console.error("❌ Failed to load Razorpay for fallback:", err);
-            alert("Unable to load payment system. Please try again later.");
-            resolve(false);
-            return;
-          }
-        }
-
-        // Create and open Razorpay instance as a popup
-        console.log("🔄 Creating fallback Razorpay instance with popup");
+        // Create Razorpay instance
         const rzp = new window.Razorpay(options);
-        rzp.open();
-        console.log("✅ Opened fallback Razorpay popup");
+
+        // Create and trigger inline form
+        const form = document.createElement("form");
+        form.style.display = "none";
+        document.body.appendChild(form);
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.onclick = () => {
+          rzp.open();
+          document.body.removeChild(form);
+        };
+        form.appendChild(button);
+
+        button.click();
       } catch (error) {
         console.error("❌ Error in fallback payment method:", error);
-        alert("Unable to process payment. Please try again later.");
         resolve(false);
       }
     });
@@ -613,34 +402,6 @@ export default function StickyChat({ onClose }: StickyChatProps) {
         )}
       </div>
 
-      {/* Payment popup - shown when payment link is received */}
-      {showPaymentPopup && paymentLink && (
-        <div className="absolute inset-0 bg-black/30 z-20 flex items-center justify-center">
-          <div className="bg-white rounded-lg shadow-lg p-5 max-w-sm w-full">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium">Complete Payment</h3>
-              <button
-                onClick={closePaymentPopup}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <p className="mb-4 text-gray-700">
-              Click the button below to securely complete your payment for
-              company registration:
-            </p>
-            <button
-              onClick={handlePaymentClick}
-              className="w-full bg-blue text-white py-3 rounded-lg flex items-center justify-center space-x-2 hover:bg-blue/90 transition"
-            >
-              <CreditCard className="h-5 w-5" />
-              <span>Pay Now</span>
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Chat messages */}
       <div className="flex-1 p-3 overflow-y-auto bg-gray-50 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
         <div className="space-y-4">
@@ -664,11 +425,7 @@ export default function StickyChat({ onClose }: StickyChatProps) {
                   {message.role === "user" ? (
                     <User className="h-4 w-4 text-white" />
                   ) : (
-                    <img
-                      src={caImage}
-                      alt="CA Amit Aggrawal"
-                      className="h-4 w-4 rounded-full"
-                    />
+                    <Bot className="h-4 w-4 text-white" />
                   )}
                 </div>
                 <div>
@@ -679,9 +436,7 @@ export default function StickyChat({ onClose }: StickyChatProps) {
                         : "bg-white text-darkgray border border-gray-200 rounded-tl-none"
                     }`}
                   >
-                    <p className="text-sm whitespace-pre-wrap">
-                      {message.content}
-                    </p>
+                    <p className="text-sm">{message.content}</p>
                   </div>
                   <div className="flex items-center text-xs mt-1 text-gray-500">
                     <Clock className="h-3 w-3 mr-1" />
@@ -692,6 +447,35 @@ export default function StickyChat({ onClose }: StickyChatProps) {
             </div>
           ))}
 
+          {/* Payment message - shown when payment link is received */}
+          {showPaymentPopup && paymentLink && (
+            <div className="flex justify-start">
+              <div className="flex max-w-[80%] flex-row">
+                <div className="flex items-center justify-center h-8 w-8 rounded-full flex-shrink-0 bg-blue mr-2">
+                  <Bot className="h-4 w-4 text-white" />
+                </div>
+                <div>
+                  <div className="p-3 rounded-lg bg-white text-darkgray border border-gray-200 rounded-tl-none">
+                    <div className="flex flex-col gap-3">
+                      <h3 className="text-lg font-medium">Complete Payment</h3>
+                      <p className="text-gray-700">
+                        Click the button below to securely complete your payment
+                        for company registration:
+                      </p>
+                      <button
+                        onClick={handlePaymentClick}
+                        className="w-full bg-blue text-white py-3 rounded-lg flex items-center justify-center space-x-2 hover:bg-blue/90 transition"
+                      >
+                        <CreditCard className="h-5 w-5" />
+                        <span>Pay Now</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Loading indicator */}
           {isLoading && (
             <div className="flex justify-start">
@@ -701,12 +485,9 @@ export default function StickyChat({ onClose }: StickyChatProps) {
                 </div>
                 <div>
                   <div className="p-3 rounded-lg bg-white text-darkgray border border-gray-200 rounded-tl-none">
-                    <div className="flex items-center space-x-1">
-                      <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-[bounce_1.4s_infinite] [animation-delay:-0.32s]"></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-[bounce_1.4s_infinite] [animation-delay:-0.16s]"></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-[bounce_1.4s_infinite]"></div>
-                      </div>
+                    <div className="flex items-center space-x-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <p className="text-sm">Typing...</p>
                     </div>
                   </div>
                 </div>
@@ -798,10 +579,10 @@ export default function StickyChat({ onClose }: StickyChatProps) {
         </div>
         <p className="text-xs text-gray-500 mt-2">
           {connectionStatus === "connected"
-            ? "Connected to our Expert• Responses typically within 5 seconds"
+            ? "Connected to AI assistant • Responses typically within 5 seconds"
             : connectionStatus === "connecting"
-            ? "Connecting you with our experts..."
-            : "Disconnected - Unable to reach our experts"}
+            ? "Connecting to AI assistant..."
+            : "Disconnected - Unable to reach the assistant"}
         </p>
       </form>
     </div>

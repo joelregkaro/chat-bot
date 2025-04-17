@@ -772,34 +772,6 @@ export default function StickyChat({ onClose }: StickyChatProps) {
         )}
       </div>
 
-      {/* Payment popup - shown when payment link is received */}
-      {showPaymentPopup && paymentLink && (
-        <div className="absolute inset-0 bg-black/30 z-20 flex items-center justify-center">
-          <div className="bg-white rounded-lg shadow-lg p-5 max-w-sm w-full">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium">Complete Payment</h3>
-              <button
-                onClick={closePaymentPopup}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <p className="mb-4 text-gray-700">
-              Click the button below to securely complete your payment for
-              company registration:
-            </p>
-            <button
-              onClick={handlePaymentClick}
-              className="w-full bg-blue text-white py-3 rounded-lg flex items-center justify-center space-x-2 hover:bg-blue/90 transition"
-            >
-              <CreditCard className="h-5 w-5" />
-              <span>Pay Now</span>
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Chat messages */}
       <div className="flex-1 p-3 overflow-y-auto bg-gray-50 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
         <div className="space-y-4">
@@ -844,6 +816,35 @@ export default function StickyChat({ onClose }: StickyChatProps) {
               </div>
             </div>
           ))}
+
+          {/* Payment message - shown when payment link is received */}
+          {showPaymentPopup && paymentLink && (
+            <div className="flex justify-start">
+              <div className="flex max-w-[80%] flex-row">
+                <div className="flex items-center justify-center h-8 w-8 rounded-full flex-shrink-0 bg-blue mr-2">
+                  <Bot className="h-4 w-4 text-white" />
+                </div>
+                <div>
+                  <div className="p-3 rounded-lg bg-white text-darkgray border border-gray-200 rounded-tl-none">
+                    <div className="flex flex-col gap-3">
+                      <h3 className="text-lg font-medium">Complete Payment</h3>
+                      <p className="text-gray-700">
+                        Click the button below to securely complete your payment
+                        for company registration:
+                      </p>
+                      <button
+                        onClick={handlePaymentClick}
+                        className="w-full bg-blue text-white py-3 rounded-lg flex items-center justify-center space-x-2 hover:bg-blue/90 transition"
+                      >
+                        <CreditCard className="h-5 w-5" />
+                        <span>Pay Now</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Loading indicator */}
           {isLoading && (
