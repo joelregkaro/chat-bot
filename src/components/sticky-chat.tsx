@@ -276,45 +276,132 @@ export default function StickyChat({ onClose }: StickyChatProps) {
         }
       }
 
-      // Configure Razorpay options with left-side positioning
-      const options = {
-        key: "rzp_test_I98HfDwdi2qQ3T",
-        order_id: orderId,
-        name: "RegisterKaro",
-        description: "Company Registration Payment",
-        image:
-          "https://registerkaroonline.com/wp-content/uploads/2023/06/favicon-32x32-1.png",
-        prefill: {
-          name: "",
-          email: "",
-          contact: "",
-        },
-        theme: {
-          color: "#007bff",
-        },
-        modal: {
-          ondismiss: function () {
-            console.log("⚠️ Payment popup closed by user");
-            // Add a message to the chat about cancelled payment
-            const message =
-              "I notice you've closed the payment window. If you have any questions before proceeding with the payment, I'm here to help. Alternatively, if you'd like to continue with the registration, we can try the payment again.";
-            sendChatMessage(message);
+      // Configure Razorpay options
+      let options;
+
+      // If we have a valid order ID, use that directly
+      if (orderId && orderId.length > 3) {
+        console.log("✅ Using Razorpay SDK with order ID:", orderId);
+
+        options = {
+          key: "rzp_test_I98HfDwdi2qQ3T", // Test key
+          order_id: orderId,
+          name: "RegisterKaro",
+          description: "Company Registration Payment",
+          image:
+            "https://registerkaroonline.com/wp-content/uploads/2023/06/favicon-32x32-1.png",
+          prefill: {
+            name: "",
+            email: "",
+            contact: "",
           },
-          escape: true,
-          animation: true,
-          position: "left", // Position the popup on the left side
-          backdropclose: true, // Allow closing by clicking outside
-          backdrop: true, // Show backdrop
-          backdropcolor: "rgba(0,0,0,0.5)", // Semi-transparent backdrop
-          zindex: 1000, // Ensure proper z-index
-        },
-        handler: function (response: any) {
-          console.log("💰 Payment successful:", response);
-          if (response.razorpay_payment_id) {
-            markPaymentCompleted();
-          }
-        },
-      };
+          theme: {
+            color: "#007bff",
+          },
+          modal: {
+            ondismiss: function () {
+              console.log("⚠️ Payment popup closed by user");
+              // Add a message to the chat about cancelled payment
+              // Use a more neutral message that doesn't assume intent
+              const message =
+                "I notice you've closed the payment window. If you have any questions before proceeding with the payment, I'm here to help. Alternatively, if you'd like to continue with the registration, we can try the payment again.";
+
+              sendChatMessage(message);
+
+              // Create a function to handle cancellation notification
+              const notifyCancellation = () => {
+                // Log the WebSocket service is being used
+                console.log("Notifying backend about payment cancellation");
+
+                try {
+                  // Get the current session ID, cookie ID, and device ID
+                  const currentSessionId =
+                    webSocketService.getSessionId() || "";
+                  const currentCookieId = webSocketService.getCookieId() || "";
+                  const currentDeviceId = webSocketService.getDeviceId() || "";
+
+                  // Notify backend about cancellation
+                  webSocketService.sendToServer({
+                    type: "payment_status",
+                    payment_completed: false,
+                    payment_status: "cancelled",
+                    status: "cancelled",
+                    session_id: currentSessionId,
+                    cookie_id: currentCookieId,
+                    device_id: currentDeviceId,
+                    timestamp: new Date().toISOString(),
+                  });
+
+                  console.log(
+                    "Successfully notified backend about cancellation"
+                  );
+                } catch (error) {
+                  console.error(
+                    "Failed to notify backend about cancellation:",
+                    error
+                  );
+                }
+              };
+
+              // Call the function to notify cancellation
+              notifyCancellation();
+            },
+            escape: true,
+            animation: true,
+          },
+          handler: function (response: any) {
+            console.log("💰 Payment successful:", response);
+            if (response.razorpay_payment_id) {
+              // Mark payment as completed in the system
+              markPaymentCompleted();
+
+              // Send a simple confirmation message - server will handle detailed confirmation
+              // Just inform the user that payment was successful
+              sendChatMessage("Your payment has been successfully processed.");
+
+              // Clear localStorage paymentCompleted on successful payment
+              try {
+                localStorage.removeItem("paymentCompleted");
+              } catch (e) {
+                console.error(
+                  "Error removing paymentCompleted from localStorage:",
+                  e
+                );
+              }
+            }
+          },
+        };
+      } else {
+        // If we don't have an order ID, use a simpler configuration
+        // This is a fallback that might still work in some cases
+        console.log("⚠️ No valid order ID found, using basic configuration");
+
+        options = {
+          key: "rzp_test_I98HfDwdi2qQ3T",
+          amount: 500000, // Default to ₹5,000 in paise
+          currency: "INR",
+          name: "RegisterKaro",
+          description: "Company Registration Payment",
+          image:
+            "https://registerkaroonline.com/wp-content/uploads/2023/06/favicon-32x32-1.png",
+          prefill: {
+            name: "",
+            email: "",
+            contact: "",
+          },
+          modal: {
+            ondismiss: function () {
+              console.log("⚠️ Payment popup closed by user");
+            },
+          },
+          handler: function (response: any) {
+            console.log("💰 Payment successful:", response);
+            if (response.razorpay_payment_id) {
+              markPaymentCompleted();
+            }
+          },
+        };
+      }
 
       try {
         // Create and open Razorpay checkout
@@ -325,21 +412,8 @@ export default function StickyChat({ onClose }: StickyChatProps) {
         const rzp = new window.Razorpay(options);
         console.log("✅ Razorpay instance created");
 
-        // Add custom CSS to ensure chat remains accessible
-        const style = document.createElement("style");
-        style.textContent = `
-          .razorpay-checkout-frame {
-            left: 0 !important;
-            right: auto !important;
-            max-width: 50% !important;
-          }
-          .razorpay-checkout-frame iframe {
-            width: 100% !important;
-            height: 100% !important;
-          }
-        `;
-        document.head.appendChild(style);
-
+        // CRITICAL: This opens a popup modal WITHIN the current page
+        // It does NOT navigate away from the page
         rzp.open();
         console.log("✅ Razorpay checkout opened as popup");
         return true;
