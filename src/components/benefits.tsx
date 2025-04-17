@@ -1,4 +1,4 @@
-import { CheckCircle } from "lucide-react"
+import { CheckCircle } from "lucide-react";
 
 export default function Benefits() {
   const benefits = [
@@ -9,7 +9,8 @@ export default function Benefits() {
     },
     {
       title: "Limited Liability",
-      description: "Protect personal assets by legally separating them from the company's liabilities.",
+      description:
+        "Protect personal assets by legally separating them from the company's liabilities.",
     },
     {
       title: "Funding & Incentives",
@@ -18,24 +19,26 @@ export default function Benefits() {
     },
     {
       title: "Tax Efficiency",
-      description: "Benefit from various tax incentives, deductions, and a clear tax structure.",
+      description:
+        "Benefit from various tax incentives, deductions, and a clear tax structure.",
     },
     {
       title: "Stronger Market Position",
-      description: "Bolster your brand image and credibility in the competitive Delhi NCR market.",
+      description:
+        "Bolster your brand image and credibility in the competitive market.",
     },
     {
       title: "Ease of Expansion",
       description:
         "A registered company finds it easier to scale operations, enter new markets, and secure business deals.",
     },
-  ]
+  ];
 
   return (
     <section className="py-16 bg-custom-gradient-page relative overflow-hidden">
       <div className="container mx-auto">
         <h2 className="text-3xl font-bold text-blue text-center mb-12">
-          Benefits of Registering as a Private Limited Company in Delhi NCR
+          Benefits of Registering as a Private Limited Company
         </h2>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 px-4 cursor-pointer">
@@ -47,8 +50,12 @@ export default function Benefits() {
               <div className="flex items-start">
                 <CheckCircle className="h-6 w-6 text-blue mr-3 mt-1 flex-shrink-0" />
                 <div>
-                  <h3 className="text-xl font-semibold text-[#FCA229] mb-2">{benefit.title}</h3>
-                  <p className="text-darkgray leading-relaxed">{benefit.description}</p>
+                  <h3 className="text-xl font-semibold text-[#FCA229] mb-2">
+                    {benefit.title}
+                  </h3>
+                  <p className="text-darkgray leading-relaxed">
+                    {benefit.description}
+                  </p>
                 </div>
               </div>
             </div>
@@ -56,6 +63,5 @@ export default function Benefits() {
         </div>
       </div>
     </section>
-  )
+  );
 }
-

@@ -1,4 +1,4 @@
-import { Award, Clock, UserCheck, Shield, Settings } from "lucide-react"
+import { Award, Clock, UserCheck, Shield, Settings } from "lucide-react";
 
 export default function WhyChooseUs() {
   const reasons = [
@@ -38,16 +38,17 @@ export default function WhyChooseUs() {
       description:
         "Our services are customized to meet your specific business needs, ensuring a perfect fit for your unique situation.",
     },
-  ]
+  ];
 
   return (
     <section className="py-16 bg-custom-gradient-page relative overflow-hidden">
       <div className="container mx-auto">
         <h2 className="text-3xl font-bold text-blue text-center mb-4">
-          Why Choose Us For Private Limited Company Registration in Delhi NCR?
+          Why Choose Us For Private Limited Company Registration ?
         </h2>
         <p className="text-center text-darkgray mb-12 max-w-3xl mx-auto">
-          We make the registration process seamless so you can focus on growing your business
+          We make the registration process seamless so you can focus on growing
+          your business
         </p>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 px-4 cursor-pointer">
@@ -57,15 +58,20 @@ export default function WhyChooseUs() {
               className="bg-white p-8 rounded-lg shadow-custom hover:shadow-custom-hover transition-all duration-300 transform hover:-translate-y-2 border border-gray-100"
             >
               <div className="flex flex-col items-center text-center">
-                <div className="mb-4 p-3 bg-cream rounded-full">{reason.icon}</div>
-                <h3 className="text-xl font-semibold text-blue mb-3">{reason.title}</h3>
-                <p className="text-[#474747] leading-relaxed">{reason.description}</p>
+                <div className="mb-4 p-3 bg-cream rounded-full">
+                  {reason.icon}
+                </div>
+                <h3 className="text-xl font-semibold text-blue mb-3">
+                  {reason.title}
+                </h3>
+                <p className="text-[#474747] leading-relaxed">
+                  {reason.description}
+                </p>
               </div>
             </div>
           ))}
         </div>
       </div>
     </section>
-  )
+  );
 }
-

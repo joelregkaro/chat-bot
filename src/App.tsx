@@ -106,7 +106,7 @@ const App = () => {
           <div className="hidden md:block fixed bottom-0 left-0 right-0 bg-blue text-white py-2 text-center z-30 animate-slide-up">
             <div className="container mx-auto flex items-center justify-center gap-2 text-sm">
               <span className="font-medium">
-                Trusted by 50,000+ businesses in Delhi NCR
+                Trusted by 50,000+ businesses in
               </span>
               <span className="mx-2">•</span>
               <span>4.9/5 rating from 10,000+ reviews</span>
