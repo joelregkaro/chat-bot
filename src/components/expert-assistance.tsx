@@ -34,7 +34,7 @@ export default function ExpertAssistance() {
   const handleChatClick = () => {
     // Send message to start registration process
     sendMessage(
-      "I want to start the registration process for a Private Limited Company"
+      "I want to start the registration process, Please help me with the process"
     );
 
     // On mobile, find and click the chat button to trigger the popup
