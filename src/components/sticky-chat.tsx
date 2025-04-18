@@ -14,7 +14,6 @@ import {
 import caImage from "../assets/heroImg.png";
 import { useChat } from "../contexts/ChatContext";
 import webSocketService from "../services/WebSocketService";
-import { cn } from "@/lib/utils";
 
 // Declare Razorpay type for TypeScript
 interface RazorpayOptions {
@@ -54,22 +53,6 @@ interface StickyChatProps {
   onClose?: () => void;
 }
 
-// Add interface for registration data
-interface RegistrationData {
-  name: string;
-  email: string;
-  phone: string;
-  serviceType: string;
-  package: string;
-}
-
-// Add interface for webhook response
-interface WebhookResponse {
-  success: boolean;
-  message?: string;
-  error?: string;
-}
-
 export default function StickyChat({ onClose }: StickyChatProps) {
   const [message, setMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -85,10 +68,6 @@ export default function StickyChat({ onClose }: StickyChatProps) {
     hasCompletedPayment,
     markPaymentCompleted,
   } = useChat();
-  const [registrationData, setRegistrationData] =
-    useState<RegistrationData | null>(null);
-  const [webhookError, setWebhookError] = useState<string | null>(null);
-  const [isSendingData, setIsSendingData] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -99,94 +78,61 @@ export default function StickyChat({ onClose }: StickyChatProps) {
   }, [messages]);
 
   // Handle payment link click - defined with useCallback for React Hook dependencies
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const handlePaymentClick = useCallback(async () => {
-    // Find the payment link in the messages
-    const paymentMessage = messages.find(
-      (msg) =>
-        msg.role === "assistant" && msg.content.includes("https://rzp.io/l/")
-    );
-
-    if (paymentMessage) {
-      // Extract the payment link using regex
-      const paymentLinkMatch = paymentMessage.content.match(
-        /https:\/\/rzp\.io\/l\/[^\s)]+/
+    if (paymentLink) {
+      // DON'T close the popup immediately - keep it open until payment is initialized
+      console.log(
+        "🔄 Payment button clicked, processing payment link:",
+        paymentLink
       );
-      const paymentLink = paymentLinkMatch ? paymentLinkMatch[0] : null;
 
-      if (paymentLink) {
-        console.log(
-          "🔄 Payment button clicked, processing payment link:",
-          paymentLink
-        );
+      // DO NOT auto-send chat messages here - user should see them only if they manually clicked
 
-        // Create iframe container
-        const iframeContainer = document.createElement("div");
-        iframeContainer.style.position = "fixed";
-        iframeContainer.style.top = "0";
-        iframeContainer.style.left = "0";
-        iframeContainer.style.width = "100%";
-        iframeContainer.style.height = "100%";
-        iframeContainer.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
-        iframeContainer.style.zIndex = "1000";
-        iframeContainer.style.display = "flex";
-        iframeContainer.style.alignItems = "center";
-        iframeContainer.style.justifyContent = "center";
+      // Attempt to load Razorpay
+      const scriptLoaded = await loadRazorpayScript();
+      console.log(`📜 Razorpay script loaded: ${scriptLoaded}`);
 
-        // Create iframe
-        const iframe = document.createElement("iframe");
-        iframe.src = paymentLink;
-        iframe.style.width = "90%";
-        iframe.style.height = "90%";
-        iframe.style.maxWidth = "800px";
-        iframe.style.maxHeight = "600px";
-        iframe.style.border = "none";
-        iframe.style.borderRadius = "8px";
-        iframe.style.backgroundColor = "white";
+      try {
+        if (scriptLoaded) {
+          // Initialize Razorpay checkout
+          const success = await initializeRazorpay(paymentLink);
 
-        // Create close button
-        const closeButton = document.createElement("button");
-        closeButton.innerHTML =
-          '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
-        closeButton.style.position = "absolute";
-        closeButton.style.top = "20px";
-        closeButton.style.right = "20px";
-        closeButton.style.padding = "8px";
-        closeButton.style.backgroundColor = "white";
-        closeButton.style.border = "none";
-        closeButton.style.borderRadius = "50%";
-        closeButton.style.cursor = "pointer";
-        closeButton.style.zIndex = "1001";
-        closeButton.onclick = () => {
-          document.body.removeChild(iframeContainer);
-        };
-
-        // Add elements to DOM
-        iframeContainer.appendChild(iframe);
-        iframeContainer.appendChild(closeButton);
-        document.body.appendChild(iframeContainer);
-
-        // Listen for payment completion message from iframe
-        const handleMessage = (event: MessageEvent) => {
-          if (
-            event.data &&
-            typeof event.data === "object" &&
-            event.data.payment_status === "completed"
-          ) {
-            markPaymentCompleted();
-            sendChatMessage("Your payment has been successfully processed.");
-            document.body.removeChild(iframeContainer);
-            window.removeEventListener("message", handleMessage);
+          // Only close popup after successful initialization
+          if (success) {
+            console.log(
+              "✅ Razorpay initialized successfully, now closing popup"
+            );
+            closePaymentPopup();
+          } else {
+            console.error(
+              "⚠️ Razorpay initialization unsuccessful, keeping popup open"
+            );
           }
-        };
+        } else {
+          // Fallback to iframe if script loading fails
+          console.log("⚠️ Falling back to iframe payment method");
+          const iframeSuccess = await openPaymentIframe(paymentLink);
 
-        window.addEventListener("message", handleMessage);
-      } else {
-        console.error("❌ No payment link found in the message");
+          // Only close popup on successful iframe creation
+          if (iframeSuccess) {
+            console.log(
+              "✅ Payment iframe loaded successfully, now closing popup"
+            );
+            closePaymentPopup();
+          }
+        }
+      } catch (error) {
+        console.error("❌ Error during payment processing:", error);
+        // Don't close the popup on error - let user try again
       }
     } else {
-      console.error("❌ No payment message found");
+      console.error("❌ No payment link available!");
     }
-  }, [messages, markPaymentCompleted, sendChatMessage]);
+  }, [paymentLink, closePaymentPopup]);
+
+  // NO AUTO-TRIGGER - Let user click the button manually
+  // This prevents unwanted automatic messages and popup attempts
 
   // Focus the textarea after each message is received
   useEffect(() => {
@@ -213,184 +159,416 @@ export default function StickyChat({ onClose }: StickyChatProps) {
     }
   };
 
-  // Add function to validate registration data
-  const validateRegistrationData = (data: RegistrationData): boolean => {
-    if (!data.name || data.name.trim().length < 2) {
-      setWebhookError("Please provide a valid name");
-      return false;
-    }
+  const handleSendMessage = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!message.trim()) return;
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!data.email || !emailRegex.test(data.email)) {
-      setWebhookError("Please provide a valid email address");
-      return false;
-    }
+    // Send message via chat context
+    sendChatMessage(message);
+    setMessage("");
 
-    const phoneRegex = /^[0-9]{10}$/;
-    if (!data.phone || !phoneRegex.test(data.phone.replace(/\D/g, ""))) {
-      setWebhookError("Please provide a valid 10-digit phone number");
-      return false;
-    }
-
-    if (!data.serviceType) {
-      setWebhookError("Please specify the service type");
-      return false;
-    }
-
-    if (!data.package) {
-      setWebhookError("Please specify the package");
-      return false;
-    }
-
-    return true;
+    // Focus the textarea after sending
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    }, 0);
   };
 
-  // Enhanced function to send data to webhook with retry logic
-  const sendToWebhook = async (
-    data: RegistrationData,
-    retryCount = 0
-  ): Promise<WebhookResponse> => {
-    const maxRetries = 3;
-    const retryDelay = 1000; // 1 second
+  // Load Razorpay script as a promise for better error handling
+  const loadRazorpayScript = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (window.Razorpay) {
+        console.log("✅ Razorpay script already loaded");
+        resolve(true);
+        return;
+      }
 
+      console.log("📦 Loading Razorpay script...");
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.async = true;
+
+      script.onload = () => {
+        console.log("✅ Razorpay script loaded successfully");
+        resolve(true);
+      };
+
+      script.onerror = (error) => {
+        console.error("❌ Failed to load Razorpay script:", error);
+        resolve(false);
+      };
+
+      document.body.appendChild(script);
+    });
+  };
+
+  // Initialize Razorpay with payment link - returns a Promise<boolean>
+  const initializeRazorpay = async (paymentLink: string): Promise<boolean> => {
     try {
-      setIsSendingData(true);
-      setWebhookError(null);
+      console.log("🔄 Processing payment link:", paymentLink);
 
-      // Validate data before sending
-      if (!validateRegistrationData(data)) {
-        return {
-          success: false,
-          error: webhookError || "Invalid registration data",
+      // If payment already completed, don't show new payment form
+      if (hasCompletedPayment) {
+        console.log(
+          "✅ Payment already completed, not showing payment form again"
+        );
+        return true;
+      }
+
+      // Extract order ID from payment link if possible
+      let orderId = "";
+      try {
+        // Try to extract order ID from different URL formats
+        const url = new URL(paymentLink);
+
+        // Try standard query param first
+        orderId = url.searchParams.get("order_id") || "";
+
+        // If not found in query params, try to extract from path
+        if (!orderId) {
+          // Check for payment ID in URL path - various formats
+          if (url.pathname.includes("/l/")) {
+            // Format: /l/PAYMENT_ID
+            const pathParts = url.pathname.split("/l/");
+            if (pathParts.length > 1) {
+              orderId = pathParts[1];
+              console.log(`Extracted order ID from path: ${orderId}`);
+            }
+          } else if (url.pathname.includes("/order/")) {
+            // Format: /order/ORDER_ID
+            const orderMatches = url.pathname.match(
+              /\/order\/([a-zA-Z0-9_\-]+)/
+            );
+            if (orderMatches && orderMatches[1]) {
+              orderId = orderMatches[1];
+              console.log(`Extracted order ID from order path: ${orderId}`);
+            }
+          }
+        }
+
+        console.log(`Using order ID: ${orderId || "Not available"}`);
+      } catch (error) {
+        console.warn("⚠️ Could not parse payment URL:", error);
+      }
+
+      // Check if Razorpay script is available
+      if (typeof window.Razorpay !== "function") {
+        console.error(
+          "❌ Razorpay not loaded correctly! Attempting to load it now."
+        );
+
+        // Try to load Razorpay dynamically if not available
+        try {
+          await new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = "https://checkout.razorpay.com/v1/checkout.js";
+            script.async = true;
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+          });
+          console.log("✅ Razorpay script loaded dynamically");
+        } catch (loadError) {
+          console.error("❌ Failed to load Razorpay script:", loadError);
+          alert("Unable to load payment system. Please try again later.");
+          return false;
+        }
+      }
+
+      // Configure Razorpay options
+      let options;
+
+      // If we have a valid order ID, use that directly
+      if (orderId && orderId.length > 3) {
+        console.log("✅ Using Razorpay SDK with order ID:", orderId);
+
+        options = {
+          key: "rzp_test_I98HfDwdi2qQ3T", // Test key
+          order_id: orderId,
+          name: "RegisterKaro",
+          description: "Company Registration Payment",
+          image:
+            "https://registerkaroonline.com/wp-content/uploads/2023/06/favicon-32x32-1.png",
+          prefill: {
+            name: "",
+            email: "",
+            contact: "",
+          },
+          theme: {
+            color: "#007bff",
+          },
+          modal: {
+            ondismiss: function () {
+              console.log("⚠️ Payment popup closed by user");
+              // Add a message to the chat about cancelled payment
+              // Use a more neutral message that doesn't assume intent
+              const message =
+                "I notice you've closed the payment window. If you have any questions before proceeding with the payment, I'm here to help. Alternatively, if you'd like to continue with the registration, we can try the payment again.";
+
+              sendChatMessage(message);
+
+              // Create a function to handle cancellation notification
+              const notifyCancellation = () => {
+                // Log the WebSocket service is being used
+                console.log("Notifying backend about payment cancellation");
+
+                try {
+                  // Get the current session ID, cookie ID, and device ID
+                  const currentSessionId =
+                    webSocketService.getSessionId() || "";
+                  const currentCookieId = webSocketService.getCookieId() || "";
+                  const currentDeviceId = webSocketService.getDeviceId() || "";
+
+                  // Notify backend about cancellation
+                  webSocketService.sendToServer({
+                    type: "payment_status",
+                    payment_completed: false,
+                    payment_status: "cancelled",
+                    status: "cancelled",
+                    session_id: currentSessionId,
+                    cookie_id: currentCookieId,
+                    device_id: currentDeviceId,
+                    timestamp: new Date().toISOString(),
+                  });
+
+                  console.log(
+                    "Successfully notified backend about cancellation"
+                  );
+                } catch (error) {
+                  console.error(
+                    "Failed to notify backend about cancellation:",
+                    error
+                  );
+                }
+              };
+
+              // Call the function to notify cancellation
+              notifyCancellation();
+            },
+            escape: true,
+            animation: true,
+          },
+          handler: function (response: any) {
+            console.log("💰 Payment successful:", response);
+            if (response.razorpay_payment_id) {
+              // Mark payment as completed in the system
+              markPaymentCompleted();
+
+              // Send a simple confirmation message - server will handle detailed confirmation
+              // Just inform the user that payment was successful
+              sendChatMessage("Your payment has been successfully processed.");
+
+              // Clear localStorage paymentCompleted on successful payment
+              try {
+                localStorage.removeItem("paymentCompleted");
+              } catch (e) {
+                console.error(
+                  "Error removing paymentCompleted from localStorage:",
+                  e
+                );
+              }
+            }
+          },
+        };
+      } else {
+        // If we don't have an order ID, use a simpler configuration
+        // This is a fallback that might still work in some cases
+        console.log("⚠️ No valid order ID found, using basic configuration");
+
+        options = {
+          key: "rzp_test_I98HfDwdi2qQ3T",
+          amount: 500000, // Default to ₹5,000 in paise
+          currency: "INR",
+          name: "RegisterKaro",
+          description: "Company Registration Payment",
+          image:
+            "https://registerkaroonline.com/wp-content/uploads/2023/06/favicon-32x32-1.png",
+          prefill: {
+            name: "",
+            email: "",
+            contact: "",
+          },
+          modal: {
+            ondismiss: function () {
+              console.log("⚠️ Payment popup closed by user");
+            },
+          },
+          handler: function (response: any) {
+            console.log("💰 Payment successful:", response);
+            if (response.razorpay_payment_id) {
+              markPaymentCompleted();
+            }
+          },
         };
       }
 
-      const response = await fetch(
-        "https://flow.zoho.in/60012180367/flow/webhook/incoming?zapikey=1001.fa7a8e3f7c71979544a6f99cd3b5367e.764173d0054f4da1767f12ce415fa088&isdebug=false",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
+      try {
+        // Create and open Razorpay checkout
+        console.log(
+          "⚙️ Creating Razorpay instance with options:",
+          JSON.stringify(options, null, 2)
+        );
+        const rzp = new window.Razorpay(options);
+        console.log("✅ Razorpay instance created");
+
+        // CRITICAL: This opens a popup modal WITHIN the current page
+        // It does NOT navigate away from the page
+        rzp.open();
+        console.log("✅ Razorpay checkout opened as popup");
+        return true;
+      } catch (razorpayError) {
+        console.error("❌ Error creating Razorpay instance:", razorpayError);
+        return false;
+      }
+    } catch (error) {
+      console.error("❌ Fatal error in payment processing:", error);
+      return false;
+    }
+  };
+
+  // Fallback payment method that uses Razorpay modal popup
+  const openPaymentIframe = (paymentLink: string): Promise<boolean> => {
+    console.log("⚠️ Using fallback payment method with modal popup");
+
+    return new Promise(async (resolve) => {
+      try {
+        // Create a simpler Razorpay checkout without needing an order ID
+        const options = {
+          key: "rzp_test_I98HfDwdi2qQ3T",
+          amount: 500000, // Default to ₹5,000 in paise
+          currency: "INR",
+          name: "RegisterKaro",
+          description: "Company Registration Payment",
+          image:
+            "https://registerkaroonline.com/wp-content/uploads/2023/06/favicon-32x32-1.png",
+          notes: {
+            payment_link: paymentLink, // Store original link for reference
           },
-          body: JSON.stringify({
-            name: data.name.trim(),
-            email: data.email.trim(),
-            phone: data.phone.replace(/\D/g, ""), // Remove non-digit characters
-            service_type: data.serviceType.trim(),
-            package: data.package.trim(),
-            timestamp: new Date().toISOString(),
-          }),
-        }
-      );
+          prefill: {
+            name: "User",
+            email: "",
+            contact: "",
+          },
+          theme: {
+            color: "#007bff",
+          },
+          modal: {
+            ondismiss: function () {
+              console.log("⚠️ Fallback payment popup closed by user");
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+              // No need to send a message - the server will handle it
+              // Let the server generate the message to avoid duplicates
 
-      const result = await response.json();
-      console.log("✅ Registration data sent to webhook successfully:", result);
-      return { success: true, message: "Data sent successfully" };
-    } catch (error) {
-      console.error("❌ Error sending data to webhook:", error);
+              // Create a function to handle cancellation notification
+              const notifyCancellation = () => {
+                console.log(
+                  "Notifying backend about fallback payment cancellation"
+                );
 
-      if (retryCount < maxRetries) {
-        console.log(`Retrying... (${retryCount + 1}/${maxRetries})`);
-        await new Promise((resolve) => setTimeout(resolve, retryDelay));
-        return sendToWebhook(data, retryCount + 1);
-      }
+                try {
+                  // Get the current session ID, cookie ID, and device ID
+                  const currentSessionId =
+                    webSocketService.getSessionId() || "";
+                  const currentCookieId = webSocketService.getCookieId() || "";
+                  const currentDeviceId = webSocketService.getDeviceId() || "";
 
-      setWebhookError(
-        "Failed to send registration data. Please try again later."
-      );
-      return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Unknown error occurred",
-      };
-    } finally {
-      setIsSendingData(false);
-    }
-  };
+                  // Notify backend about cancellation
+                  webSocketService.sendToServer({
+                    type: "payment_status",
+                    payment_completed: false,
+                    payment_status: "cancelled",
+                    status: "cancelled",
+                    session_id: currentSessionId,
+                    cookie_id: currentCookieId,
+                    device_id: currentDeviceId,
+                    timestamp: new Date().toISOString(),
+                  });
 
-  // Enhanced message processing with better data extraction
-  const extractRegistrationData = (
-    message: string
-  ): RegistrationData | null => {
-    try {
-      // More robust regex patterns for data extraction
-      const nameMatch = message.match(
-        /(?:name|full name|your name)[:：]?\s*([^\n,]+)/i
-      );
-      const emailMatch = message.match(
-        /(?:email|email address)[:：]?\s*([^\n,]+)/i
-      );
-      const phoneMatch = message.match(
-        /(?:phone|mobile|contact number)[:：]?\s*([^\n,]+)/i
-      );
-      const serviceMatch = message.match(
-        /(?:service|service type)[:：]?\s*([^\n,]+)/i
-      );
-      const packageMatch = message.match(/(?:package|plan)[:：]?\s*([^\n,]+)/i);
+                  console.log(
+                    "Successfully notified backend about payment cancellation"
+                  );
+                } catch (error) {
+                  console.error(
+                    "Failed to notify backend about payment cancellation:",
+                    error
+                  );
 
-      const data: RegistrationData = {
-        name: nameMatch ? nameMatch[1].trim() : "",
-        email: emailMatch ? emailMatch[1].trim() : "",
-        phone: phoneMatch ? phoneMatch[1].trim() : "",
-        serviceType: serviceMatch ? serviceMatch[1].trim() : "",
-        package: packageMatch ? packageMatch[1].trim() : "",
-      };
+                  // Only in case of network error, show a local message
+                  sendChatMessage(
+                    "Payment window was closed. Let me know if you'd like to try again."
+                  );
+                }
+              };
 
-      // Check if we have all required fields
-      if (
-        data.name &&
-        data.email &&
-        data.phone &&
-        data.serviceType &&
-        data.package
-      ) {
-        return data;
-      }
+              // Call the function to notify cancellation
+              notifyCancellation();
 
-      return null;
-    } catch (error) {
-      console.error("Error extracting registration data:", error);
-      return null;
-    }
-  };
+              resolve(false);
+            },
+            escape: true,
+            animation: true,
+          },
+          handler: function (response: any) {
+            console.log("💰 Fallback payment successful:", response);
+            if (response.razorpay_payment_id) {
+              // Mark payment as completed in the system
+              markPaymentCompleted();
 
-  // Modify handleSendMessage to use enhanced data extraction
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!message.trim() || connectionStatus !== "connected" || isLoading)
-      return;
+              // Send a simple confirmation message - server will handle detailed confirmation
+              sendChatMessage("Your payment has been successfully processed.");
 
-    const userMessage = message.trim();
-    setMessage("");
-    sendChatMessage(userMessage);
+              // Clear localStorage paymentCompleted on successful payment
+              try {
+                localStorage.removeItem("paymentCompleted");
+              } catch (e) {
+                console.error(
+                  "Error removing paymentCompleted from localStorage:",
+                  e
+                );
+              }
 
-    // Check if message contains registration details
-    if (
-      userMessage.toLowerCase().includes("register") ||
-      userMessage.toLowerCase().includes("sign up") ||
-      userMessage.toLowerCase().includes("interested")
-    ) {
-      const registrationData = extractRegistrationData(userMessage);
+              resolve(true);
+            } else {
+              resolve(false);
+            }
+          },
+        };
 
-      if (registrationData) {
-        setRegistrationData(registrationData);
-        const result = await sendToWebhook(registrationData);
-
-        if (result.success) {
-          sendChatMessage(
-            "Thank you for providing your details. We'll get back to you shortly!"
+        // Make sure Razorpay is loaded
+        if (typeof window.Razorpay !== "function") {
+          console.log(
+            "⚠️ Razorpay not available for fallback, attempting to load it now"
           );
-        } else {
-          sendChatMessage(
-            "I apologize, but we couldn't process your registration details. Please try again or contact our support team."
-          );
+          try {
+            await new Promise((resolveScript, rejectScript) => {
+              const script = document.createElement("script");
+              script.src = "https://checkout.razorpay.com/v1/checkout.js";
+              script.async = true;
+              script.onload = resolveScript;
+              script.onerror = rejectScript;
+              document.head.appendChild(script);
+            });
+            console.log("✅ Razorpay loaded successfully for fallback");
+          } catch (err) {
+            console.error("❌ Failed to load Razorpay for fallback:", err);
+            alert("Unable to load payment system. Please try again later.");
+            resolve(false);
+            return;
+          }
         }
+
+        // Create and open Razorpay instance as a popup
+        console.log("🔄 Creating fallback Razorpay instance with popup");
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+        console.log("✅ Opened fallback Razorpay popup");
+      } catch (error) {
+        console.error("❌ Error in fallback payment method:", error);
+        alert("Unable to process payment. Please try again later.");
+        resolve(false);
       }
-    }
+    });
   };
 
   return (
@@ -398,7 +576,7 @@ export default function StickyChat({ onClose }: StickyChatProps) {
       {/* Chat header */}
       <div className="bg-blue text-white p-3 flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <div className="rounded-full">
+          <div className=" rounded-full">
             <img
               src={caImage}
               alt="CA Amit Aggrawal"
@@ -435,6 +613,34 @@ export default function StickyChat({ onClose }: StickyChatProps) {
         )}
       </div>
 
+      {/* Payment popup - shown when payment link is received */}
+      {showPaymentPopup && paymentLink && (
+        <div className="absolute inset-0 bg-black/30 z-20 flex items-center justify-center">
+          <div className="bg-white rounded-lg shadow-lg p-5 max-w-sm w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium">Complete Payment</h3>
+              <button
+                onClick={closePaymentPopup}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mb-4 text-gray-700">
+              Click the button below to securely complete your payment for
+              company registration:
+            </p>
+            <button
+              onClick={handlePaymentClick}
+              className="w-full bg-blue text-white py-3 rounded-lg flex items-center justify-center space-x-2 hover:bg-blue/90 transition"
+            >
+              <CreditCard className="h-5 w-5" />
+              <span>Pay Now</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Chat messages */}
       <div className="flex-1 p-3 overflow-y-auto bg-gray-50 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
         <div className="space-y-4">
@@ -458,7 +664,11 @@ export default function StickyChat({ onClose }: StickyChatProps) {
                   {message.role === "user" ? (
                     <User className="h-4 w-4 text-white" />
                   ) : (
-                    <Bot className="h-4 w-4 text-white" />
+                    <img
+                      src={caImage}
+                      alt="CA Amit Aggrawal"
+                      className="h-4 w-4 rounded-full"
+                    />
                   )}
                 </div>
                 <div>
@@ -482,35 +692,6 @@ export default function StickyChat({ onClose }: StickyChatProps) {
             </div>
           ))}
 
-          {/* Payment message - shown when payment link is received */}
-          {showPaymentPopup && (
-            <div className="flex justify-start">
-              <div className="flex max-w-[80%] flex-row">
-                <div className="flex items-center justify-center h-8 w-8 rounded-full flex-shrink-0 bg-blue mr-2">
-                  <Bot className="h-4 w-4 text-white" />
-                </div>
-                <div>
-                  <div className="p-3 rounded-lg bg-white text-darkgray border border-gray-200 rounded-tl-none">
-                    <div className="flex flex-col gap-3">
-                      <h3 className="text-lg font-medium">Complete Payment</h3>
-                      <p className="text-gray-700">
-                        Click the button below to securely complete your payment
-                        for company registration:
-                      </p>
-                      <button
-                        onClick={handlePaymentClick}
-                        className="w-full bg-blue text-white py-3 rounded-lg flex items-center justify-center space-x-2 hover:bg-blue/90 transition"
-                      >
-                        <CreditCard className="h-5 w-5" />
-                        <span>Pay Now</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Loading indicator */}
           {isLoading && (
             <div className="flex justify-start">
@@ -520,9 +701,12 @@ export default function StickyChat({ onClose }: StickyChatProps) {
                 </div>
                 <div>
                   <div className="p-3 rounded-lg bg-white text-darkgray border border-gray-200 rounded-tl-none">
-                    <div className="flex items-center space-x-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <p className="text-sm">Typing...</p>
+                    <div className="flex items-center space-x-1">
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-[bounce_1.4s_infinite] [animation-delay:-0.32s]"></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-[bounce_1.4s_infinite] [animation-delay:-0.16s]"></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-[bounce_1.4s_infinite]"></div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -614,10 +798,10 @@ export default function StickyChat({ onClose }: StickyChatProps) {
         </div>
         <p className="text-xs text-gray-500 mt-2">
           {connectionStatus === "connected"
-            ? "Connected to AI assistant • Responses typically within 5 seconds"
+            ? "Connected to our Expert• Responses typically within 5 seconds"
             : connectionStatus === "connecting"
-            ? "Connecting to AI assistant..."
-            : "Disconnected - Unable to reach the assistant"}
+            ? "Connecting you with our experts..."
+            : "Disconnected - Unable to reach our experts"}
         </p>
       </form>
     </div>
