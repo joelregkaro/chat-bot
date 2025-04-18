@@ -14,6 +14,7 @@ import {
 import caImage from "../assets/heroImg.png";
 import { useChat } from "../contexts/ChatContext";
 import webSocketService from "../services/WebSocketService";
+import { cn } from "@/lib/utils";
 
 // Declare Razorpay type for TypeScript
 interface RazorpayOptions {
@@ -53,6 +54,22 @@ interface StickyChatProps {
   onClose?: () => void;
 }
 
+// Add interface for registration data
+interface RegistrationData {
+  name: string;
+  email: string;
+  phone: string;
+  serviceType: string;
+  package: string;
+}
+
+// Add interface for webhook response
+interface WebhookResponse {
+  success: boolean;
+  message?: string;
+  error?: string;
+}
+
 export default function StickyChat({ onClose }: StickyChatProps) {
   const [message, setMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -68,6 +85,10 @@ export default function StickyChat({ onClose }: StickyChatProps) {
     hasCompletedPayment,
     markPaymentCompleted,
   } = useChat();
+  const [registrationData, setRegistrationData] =
+    useState<RegistrationData | null>(null);
+  const [webhookError, setWebhookError] = useState<string | null>(null);
+  const [isSendingData, setIsSendingData] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -192,20 +213,184 @@ export default function StickyChat({ onClose }: StickyChatProps) {
     }
   };
 
-  const handleSendMessage = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!message.trim()) return;
+  // Add function to validate registration data
+  const validateRegistrationData = (data: RegistrationData): boolean => {
+    if (!data.name || data.name.trim().length < 2) {
+      setWebhookError("Please provide a valid name");
+      return false;
+    }
 
-    // Send message via chat context
-    sendChatMessage(message);
-    setMessage("");
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!data.email || !emailRegex.test(data.email)) {
+      setWebhookError("Please provide a valid email address");
+      return false;
+    }
 
-    // Focus the textarea after sending
-    setTimeout(() => {
-      if (textareaRef.current) {
-        textareaRef.current.focus();
+    const phoneRegex = /^[0-9]{10}$/;
+    if (!data.phone || !phoneRegex.test(data.phone.replace(/\D/g, ""))) {
+      setWebhookError("Please provide a valid 10-digit phone number");
+      return false;
+    }
+
+    if (!data.serviceType) {
+      setWebhookError("Please specify the service type");
+      return false;
+    }
+
+    if (!data.package) {
+      setWebhookError("Please specify the package");
+      return false;
+    }
+
+    return true;
+  };
+
+  // Enhanced function to send data to webhook with retry logic
+  const sendToWebhook = async (
+    data: RegistrationData,
+    retryCount = 0
+  ): Promise<WebhookResponse> => {
+    const maxRetries = 3;
+    const retryDelay = 1000; // 1 second
+
+    try {
+      setIsSendingData(true);
+      setWebhookError(null);
+
+      // Validate data before sending
+      if (!validateRegistrationData(data)) {
+        return {
+          success: false,
+          error: webhookError || "Invalid registration data",
+        };
       }
-    }, 0);
+
+      const response = await fetch(
+        "https://flow.zoho.in/60012180367/flow/webhook/incoming?zapikey=1001.fa7a8e3f7c71979544a6f99cd3b5367e.764173d0054f4da1767f12ce415fa088&isdebug=false",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: data.name.trim(),
+            email: data.email.trim(),
+            phone: data.phone.replace(/\D/g, ""), // Remove non-digit characters
+            service_type: data.serviceType.trim(),
+            package: data.package.trim(),
+            timestamp: new Date().toISOString(),
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log("✅ Registration data sent to webhook successfully:", result);
+      return { success: true, message: "Data sent successfully" };
+    } catch (error) {
+      console.error("❌ Error sending data to webhook:", error);
+
+      if (retryCount < maxRetries) {
+        console.log(`Retrying... (${retryCount + 1}/${maxRetries})`);
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
+        return sendToWebhook(data, retryCount + 1);
+      }
+
+      setWebhookError(
+        "Failed to send registration data. Please try again later."
+      );
+      return {
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
+      };
+    } finally {
+      setIsSendingData(false);
+    }
+  };
+
+  // Enhanced message processing with better data extraction
+  const extractRegistrationData = (
+    message: string
+  ): RegistrationData | null => {
+    try {
+      // More robust regex patterns for data extraction
+      const nameMatch = message.match(
+        /(?:name|full name|your name)[:：]?\s*([^\n,]+)/i
+      );
+      const emailMatch = message.match(
+        /(?:email|email address)[:：]?\s*([^\n,]+)/i
+      );
+      const phoneMatch = message.match(
+        /(?:phone|mobile|contact number)[:：]?\s*([^\n,]+)/i
+      );
+      const serviceMatch = message.match(
+        /(?:service|service type)[:：]?\s*([^\n,]+)/i
+      );
+      const packageMatch = message.match(/(?:package|plan)[:：]?\s*([^\n,]+)/i);
+
+      const data: RegistrationData = {
+        name: nameMatch ? nameMatch[1].trim() : "",
+        email: emailMatch ? emailMatch[1].trim() : "",
+        phone: phoneMatch ? phoneMatch[1].trim() : "",
+        serviceType: serviceMatch ? serviceMatch[1].trim() : "",
+        package: packageMatch ? packageMatch[1].trim() : "",
+      };
+
+      // Check if we have all required fields
+      if (
+        data.name &&
+        data.email &&
+        data.phone &&
+        data.serviceType &&
+        data.package
+      ) {
+        return data;
+      }
+
+      return null;
+    } catch (error) {
+      console.error("Error extracting registration data:", error);
+      return null;
+    }
+  };
+
+  // Modify handleSendMessage to use enhanced data extraction
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!message.trim() || connectionStatus !== "connected" || isLoading)
+      return;
+
+    const userMessage = message.trim();
+    setMessage("");
+    sendChatMessage(userMessage);
+
+    // Check if message contains registration details
+    if (
+      userMessage.toLowerCase().includes("register") ||
+      userMessage.toLowerCase().includes("sign up") ||
+      userMessage.toLowerCase().includes("interested")
+    ) {
+      const registrationData = extractRegistrationData(userMessage);
+
+      if (registrationData) {
+        setRegistrationData(registrationData);
+        const result = await sendToWebhook(registrationData);
+
+        if (result.success) {
+          sendChatMessage(
+            "Thank you for providing your details. We'll get back to you shortly!"
+          );
+        } else {
+          sendChatMessage(
+            "I apologize, but we couldn't process your registration details. Please try again or contact our support team."
+          );
+        }
+      }
+    }
   };
 
   return (
