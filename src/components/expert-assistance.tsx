@@ -7,10 +7,52 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import RegisterForm from "./RegisterForm";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useChat } from "../contexts/ChatContext";
 
 export default function ExpertAssistance() {
   const [isOpen, setIsOpen] = useState(false);
+  const { sendMessage } = useChat();
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check if we're on mobile using useEffect
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    // Initial check
+    checkMobile();
+
+    // Add event listener for window resize
+    window.addEventListener("resize", checkMobile);
+
+    // Cleanup
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  const handleChatClick = () => {
+    // Send message to start registration process
+    sendMessage(
+      "I want to start the registration process, Please help me with the process"
+    );
+
+    // On mobile, find and click the chat button to trigger the popup
+    if (isMobile) {
+      const chatButton = document.querySelector(
+        '[data-testid="chat-button"]'
+      ) as HTMLElement;
+      if (chatButton) {
+        chatButton.click();
+      }
+    } else {
+      // On desktop, scroll to chat section
+      const chatElement = document.getElementById("chat-section");
+      if (chatElement) {
+        chatElement.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+  };
 
   return (
     <section className="py-16 bg-gradient-to-br from-white via-orange-50/30 to-blue-50/30 relative overflow-hidden">
@@ -103,7 +145,7 @@ export default function ExpertAssistance() {
                   </p>
                 </div>
                 <Button
-                  onClick={() => setIsOpen(true)}
+                  onClick={handleChatClick}
                   className="bg-orange hover:bg-orange/90 text-white rounded-full px-8 py-6 text-base font-medium shadow-lg transition-all duration-300 transform hover:scale-105 hover:shadow-xl flex items-center justify-center gap-2 min-w-[200px]"
                 >
                   <MessageSquare className="h-5 w-5" /> Chat With Us
@@ -121,7 +163,7 @@ export default function ExpertAssistance() {
         </div>
       </div>
 
-      {/* Register Form Modal */}
+      {/* Register Form Modal - Commented out for now
       {isOpen && (
         <div className="fixed inset-0 bg-black/50 z-50">
           <div className="relative h-full flex items-end md:items-center justify-center">
@@ -131,6 +173,7 @@ export default function ExpertAssistance() {
           </div>
         </div>
       )}
+      */}
     </section>
   );
 }
