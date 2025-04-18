@@ -14,7 +14,6 @@ import {
 import caImage from "../assets/heroImg.png";
 import { useChat } from "../contexts/ChatContext";
 import webSocketService from "../services/WebSocketService";
-import { cn } from "@/lib/utils";
 
 // Declare Razorpay type for TypeScript
 interface RazorpayOptions {
@@ -458,7 +457,11 @@ export default function StickyChat({ onClose }: StickyChatProps) {
                   {message.role === "user" ? (
                     <User className="h-4 w-4 text-white" />
                   ) : (
-                    <Bot className="h-4 w-4 text-white" />
+                    <img
+                      src={caImage}
+                      alt="CA Amit Aggrawal"
+                      className="h-6 w-6 rounded-full"
+                    />
                   )}
                 </div>
                 <div>
@@ -487,7 +490,11 @@ export default function StickyChat({ onClose }: StickyChatProps) {
             <div className="flex justify-start">
               <div className="flex max-w-[80%] flex-row">
                 <div className="flex items-center justify-center h-8 w-8 rounded-full flex-shrink-0 bg-blue mr-2">
-                  <Bot className="h-4 w-4 text-white" />
+                  <img
+                    src={caImage}
+                    alt="CA Amit Aggrawal"
+                    className="h-6 w-6 rounded-full"
+                  />
                 </div>
                 <div>
                   <div className="p-3 rounded-lg bg-white text-darkgray border border-gray-200 rounded-tl-none">
@@ -516,7 +523,11 @@ export default function StickyChat({ onClose }: StickyChatProps) {
             <div className="flex justify-start">
               <div className="flex max-w-[80%] flex-row">
                 <div className="flex items-center justify-center h-8 w-8 rounded-full flex-shrink-0 bg-blue mr-2">
-                  <Bot className="h-4 w-4 text-white" />
+                  <img
+                    src={caImage}
+                    alt="CA Amit Aggrawal"
+                    className="h-6 w-6 rounded-full"
+                  />
                 </div>
                 <div>
                   <div className="p-3 rounded-lg bg-white text-darkgray border border-gray-200 rounded-tl-none">
