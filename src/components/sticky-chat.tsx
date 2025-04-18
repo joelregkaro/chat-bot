@@ -78,61 +78,76 @@ export default function StickyChat({ onClose }: StickyChatProps) {
   }, [messages]);
 
   // Handle payment link click - defined with useCallback for React Hook dependencies
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const handlePaymentClick = useCallback(async () => {
     if (paymentLink) {
-      // DON'T close the popup immediately - keep it open until payment is initialized
       console.log(
         "🔄 Payment button clicked, processing payment link:",
         paymentLink
       );
 
-      // DO NOT auto-send chat messages here - user should see them only if they manually clicked
+      // Create iframe container
+      const iframeContainer = document.createElement("div");
+      iframeContainer.style.position = "fixed";
+      iframeContainer.style.top = "0";
+      iframeContainer.style.left = "0";
+      iframeContainer.style.width = "100%";
+      iframeContainer.style.height = "100%";
+      iframeContainer.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
+      iframeContainer.style.zIndex = "1000";
+      iframeContainer.style.display = "flex";
+      iframeContainer.style.alignItems = "center";
+      iframeContainer.style.justifyContent = "center";
 
-      // Attempt to load Razorpay
-      const scriptLoaded = await loadRazorpayScript();
-      console.log(`📜 Razorpay script loaded: ${scriptLoaded}`);
+      // Create iframe
+      const iframe = document.createElement("iframe");
+      iframe.src = paymentLink;
+      iframe.style.width = "90%";
+      iframe.style.height = "90%";
+      iframe.style.maxWidth = "800px";
+      iframe.style.maxHeight = "600px";
+      iframe.style.border = "none";
+      iframe.style.borderRadius = "8px";
+      iframe.style.backgroundColor = "white";
 
-      try {
-        if (scriptLoaded) {
-          // Initialize Razorpay checkout
-          const success = await initializeRazorpay(paymentLink);
+      // Create close button
+      const closeButton = document.createElement("button");
+      closeButton.innerHTML =
+        '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+      closeButton.style.position = "absolute";
+      closeButton.style.top = "20px";
+      closeButton.style.right = "20px";
+      closeButton.style.padding = "8px";
+      closeButton.style.backgroundColor = "white";
+      closeButton.style.border = "none";
+      closeButton.style.borderRadius = "50%";
+      closeButton.style.cursor = "pointer";
+      closeButton.style.zIndex = "1001";
+      closeButton.onclick = () => {
+        document.body.removeChild(iframeContainer);
+      };
 
-          // Only close popup after successful initialization
-          if (success) {
-            console.log(
-              "✅ Razorpay initialized successfully, now closing popup"
-            );
-            closePaymentPopup();
-          } else {
-            console.error(
-              "⚠️ Razorpay initialization unsuccessful, keeping popup open"
-            );
-          }
-        } else {
-          // Fallback to iframe if script loading fails
-          console.log("⚠️ Falling back to iframe payment method");
-          const iframeSuccess = await openPaymentIframe(paymentLink);
+      // Add elements to DOM
+      iframeContainer.appendChild(iframe);
+      iframeContainer.appendChild(closeButton);
+      document.body.appendChild(iframeContainer);
 
-          // Only close popup on successful iframe creation
-          if (iframeSuccess) {
-            console.log(
-              "✅ Payment iframe loaded successfully, now closing popup"
-            );
-            closePaymentPopup();
-          }
+      // Listen for payment completion message from iframe
+      const handleMessage = (event: MessageEvent) => {
+        if (
+          event.data &&
+          typeof event.data === "object" &&
+          event.data.payment_status === "completed"
+        ) {
+          markPaymentCompleted();
+          sendChatMessage("Your payment has been successfully processed.");
+          document.body.removeChild(iframeContainer);
+          window.removeEventListener("message", handleMessage);
         }
-      } catch (error) {
-        console.error("❌ Error during payment processing:", error);
-        // Don't close the popup on error - let user try again
-      }
-    } else {
-      console.error("❌ No payment link available!");
-    }
-  }, [paymentLink, closePaymentPopup]);
+      };
 
-  // NO AUTO-TRIGGER - Let user click the button manually
-  // This prevents unwanted automatic messages and popup attempts
+      window.addEventListener("message", handleMessage);
+    }
+  }, [paymentLink, markPaymentCompleted, sendChatMessage]);
 
   // Focus the textarea after each message is received
   useEffect(() => {
@@ -175,197 +190,12 @@ export default function StickyChat({ onClose }: StickyChatProps) {
     }, 0);
   };
 
-  // Load Razorpay script as a promise for better error handling
-  const loadRazorpayScript = (): Promise<boolean> => {
-    return new Promise((resolve) => {
-      if (window.Razorpay) {
-        console.log("✅ Razorpay script already loaded");
-        resolve(true);
-        return;
-      }
-
-      console.log("📦 Loading Razorpay script...");
-      const script = document.createElement("script");
-      script.src = "https://checkout.razorpay.com/v1/checkout.js";
-      script.async = true;
-
-      script.onload = () => {
-        console.log("✅ Razorpay script loaded successfully");
-        resolve(true);
-      };
-
-      script.onerror = (error) => {
-        console.error("❌ Failed to load Razorpay script:", error);
-        resolve(false);
-      };
-
-      document.body.appendChild(script);
-    });
-  };
-
-  // Initialize Razorpay with payment link - returns a Promise<boolean>
-  const initializeRazorpay = async (paymentLink: string): Promise<boolean> => {
-    try {
-      console.log("🔄 Processing payment link:", paymentLink);
-
-      // If payment already completed, don't show new payment form
-      if (hasCompletedPayment) {
-        console.log(
-          "✅ Payment already completed, not showing payment form again"
-        );
-        return true;
-      }
-
-      // Extract order ID from payment link if possible
-      let orderId = "";
-      try {
-        const url = new URL(paymentLink);
-        orderId = url.searchParams.get("order_id") || "";
-
-        if (!orderId) {
-          if (url.pathname.includes("/l/")) {
-            const pathParts = url.pathname.split("/l/");
-            if (pathParts.length > 1) {
-              orderId = pathParts[1];
-            }
-          }
-        }
-      } catch (error) {
-        console.warn("⚠️ Could not parse payment URL:", error);
-      }
-
-      // Configure Razorpay options for inline form
-      const options = {
-        key: "rzp_test_I98HfDwdi2qQ3T",
-        order_id: orderId,
-        name: "RegisterKaro",
-        description: "Company Registration Payment",
-        image:
-          "https://registerkaroonline.com/wp-content/uploads/2023/06/favicon-32x32-1.png",
-        prefill: {
-          name: "",
-          email: "",
-          contact: "",
-        },
-        theme: {
-          color: "#007bff",
-        },
-        handler: function (response: any) {
-          console.log("💰 Payment successful:", response);
-          if (response.razorpay_payment_id) {
-            markPaymentCompleted();
-            sendChatMessage("Your payment has been successfully processed.");
-          }
-        },
-        // Disable popup and use inline form
-        modal: {
-          escape: false,
-          backdropclose: false,
-          animation: false,
-        },
-      };
-
-      try {
-        // Create Razorpay instance
-        const rzp = new window.Razorpay(options);
-
-        // Instead of opening as popup, we'll use the inline form
-        const form = document.createElement("form");
-        form.style.display = "none";
-        document.body.appendChild(form);
-
-        // Create a hidden input for the payment button
-        const button = document.createElement("button");
-        button.type = "button";
-        button.onclick = () => {
-          rzp.open();
-          document.body.removeChild(form);
-        };
-        form.appendChild(button);
-
-        // Trigger the payment form
-        button.click();
-
-        return true;
-      } catch (razorpayError) {
-        console.error("❌ Error creating Razorpay instance:", razorpayError);
-        return false;
-      }
-    } catch (error) {
-      console.error("❌ Fatal error in payment processing:", error);
-      return false;
-    }
-  };
-
-  // Fallback payment method that uses inline form
-  const openPaymentIframe = (paymentLink: string): Promise<boolean> => {
-    console.log("⚠️ Using fallback payment method with inline form");
-
-    return new Promise(async (resolve) => {
-      try {
-        const options = {
-          key: "rzp_test_I98HfDwdi2qQ3T",
-          amount: 500000,
-          currency: "INR",
-          name: "RegisterKaro",
-          description: "Company Registration Payment",
-          image:
-            "https://registerkaroonline.com/wp-content/uploads/2023/06/favicon-32x32-1.png",
-          prefill: {
-            name: "User",
-            email: "",
-            contact: "",
-          },
-          theme: {
-            color: "#007bff",
-          },
-          modal: {
-            escape: false,
-            backdropclose: false,
-            animation: false,
-          },
-          handler: function (response: any) {
-            console.log("💰 Fallback payment successful:", response);
-            if (response.razorpay_payment_id) {
-              markPaymentCompleted();
-              sendChatMessage("Your payment has been successfully processed.");
-              resolve(true);
-            } else {
-              resolve(false);
-            }
-          },
-        };
-
-        // Create Razorpay instance
-        const rzp = new window.Razorpay(options);
-
-        // Create and trigger inline form
-        const form = document.createElement("form");
-        form.style.display = "none";
-        document.body.appendChild(form);
-
-        const button = document.createElement("button");
-        button.type = "button";
-        button.onclick = () => {
-          rzp.open();
-          document.body.removeChild(form);
-        };
-        form.appendChild(button);
-
-        button.click();
-      } catch (error) {
-        console.error("❌ Error in fallback payment method:", error);
-        resolve(false);
-      }
-    });
-  };
-
   return (
     <div className="bg-white rounded-2xl shadow-floating w-full h-[calc(100vh-8rem)] flex flex-col overflow-hidden border border-gray-100">
       {/* Chat header */}
       <div className="bg-blue text-white p-3 flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <div className=" rounded-full">
+          <div className="rounded-full">
             <img
               src={caImage}
               alt="CA Amit Aggrawal"
@@ -436,7 +266,9 @@ export default function StickyChat({ onClose }: StickyChatProps) {
                         : "bg-white text-darkgray border border-gray-200 rounded-tl-none"
                     }`}
                   >
-                    <p className="text-sm">{message.content}</p>
+                    <p className="text-sm whitespace-pre-wrap">
+                      {message.content}
+                    </p>
                   </div>
                   <div className="flex items-center text-xs mt-1 text-gray-500">
                     <Clock className="h-3 w-3 mr-1" />
