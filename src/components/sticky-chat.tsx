@@ -104,89 +104,96 @@ export default function StickyChat({ onClose }: StickyChatProps) {
 
   // Function to extract payment link from message
   const extractPaymentLink = (message: string): string | null => {
-    const urlRegex = /https:\/\/rzp\.io\/l\/[^\s)]+/;
-    const match = message.match(urlRegex);
-    return match ? match[0] : null;
-  };
+  // Match [any text](https://rzp.io/....)
+  const markdownRegex = /\[([^\]]+)\]\((https:\/\/rzp\.io\/[^\s)]+)\)/;
+  const plainUrlRegex = /(https:\/\/rzp\.io\/[^\s)]+)/;
+
+  const markdownMatch = message.match(markdownRegex);
+  if (markdownMatch) {
+    return markdownMatch[2];
+  }
+
+  const plainUrlMatch = message.match(plainUrlRegex);
+  if (plainUrlMatch) {
+    return plainUrlMatch[0];
+  }
+
+  return null;
+};
 
   // Function to format message with clickable links
   const formatMessage = (content: string) => {
-  const urlRegex = /(https:\/\/rzp\.io\/l\/[^\s)]+)/g;
+  const markdownLinkRegex = /\[([^\]]+)\]\((https:\/\/rzp\.io\/[^\s)]+)\)/g;
 
-  return content.split(urlRegex).map((part, index) => {
-    const isLink = /(https:\/\/rzp\.io\/l\/[^\s)]+)/.test(part);
-    return isLink ? (
+  const parts: (string | JSX.Element)[] = [];
+  let lastIndex = 0;
+
+  for (const match of content.matchAll(markdownLinkRegex)) {
+    const matchStart = match.index || 0;
+    const matchEnd = matchStart + match[0].length;
+
+    // Add plain text before the link
+    if (lastIndex < matchStart) {
+      parts.push(<span key={lastIndex}>{content.slice(lastIndex, matchStart)}</span>);
+    }
+
+    // Add clickable link
+    parts.push(
       <a
-        key={index}
-        href={part}
+        key={matchStart}
+        href={match[2]}
         target="_blank"
         rel="noopener noreferrer"
         className="text-blue hover:underline"
       >
-        {part}
+        {match[1]}
       </a>
-    ) : (
-      <span key={index}>{part}</span> // Wrap all text parts in a <span>
     );
-  });
+
+    lastIndex = matchEnd;
+  }
+
+  // Add any remaining text after last match
+  if (lastIndex < content.length) {
+    parts.push(<span key={lastIndex}>{content.slice(lastIndex)}</span>);
+  }
+
+  return parts;
 };
+
 
 
   // Handle payment button click
   const handlePaymentClick = () => {
-    // Find the first message with a payment link
-    const paymentMessage = messages.find(
-      (msg) =>
-        msg.role === "assistant" && msg.content.includes("https://rzp.io/l/")
-    );
+  const paymentMessage = messages.find((msg) => msg.role === "assistant" && extractPaymentLink(msg.content));
 
-    if (paymentMessage) {
-      const paymentLink = extractPaymentLink(paymentMessage.content);
-      if (paymentLink) {
-        // Open payment link in new tab
-        const newWindow = window.open(paymentLink, "_blank");
-        if (newWindow) {
-          setPaymentWindow(newWindow);
+  if (!paymentMessage) {
+    console.error("❌ No payment message with a payment link found");
+    return;
+  }
 
-          // Check for payment completion every 2 seconds
-          const checkPaymentInterval = setInterval(() => {
-            try {
-              // Check if window is closed by user
-              if (newWindow.closed) {
-                clearInterval(checkPaymentInterval);
-                setPaymentWindow(null);
-                return;
-              }
+  const paymentLink = extractPaymentLink(paymentMessage.content);
 
-              // Listen for payment completion message
-              window.addEventListener("message", function (event) {
-                if (event.data && event.data.type === "payment_completed") {
-                  clearInterval(checkPaymentInterval);
-                  newWindow.close();
-                  setPaymentWindow(null);
-                  sendChatMessage(
-                    "Payment completed successfully! We'll proceed with your registration."
-                  );
-                }
-              });
-            } catch (error) {
-              // If we can't access the window (cross-origin), just clear the interval
-              clearInterval(checkPaymentInterval);
-            }
-          }, 2000);
+  if (!paymentLink) {
+    console.error("❌ Payment link could not be extracted");
+    return;
+  }
 
-          // Cleanup interval when component unmounts
-          return () => clearInterval(checkPaymentInterval);
-        } else {
-          console.error("Could not open payment window");
-        }
-      } else {
-        console.error("No payment link found in the first message");
-      }
-    } else {
-      console.error("No payment message found in the chat");
+  const newWindow = window.open(paymentLink, "_blank");
+  if (!newWindow) {
+    alert("Unable to open payment window. Please check popup settings.");
+    return;
+  }
+
+  setPaymentWindow(newWindow);
+
+  const checkPaymentInterval = setInterval(() => {
+    if (newWindow.closed) {
+      clearInterval(checkPaymentInterval);
+      setPaymentWindow(null);
     }
-  };
+  }, 2000);
+};
 
   // Focus the textarea after each message is received
   useEffect(() => {
