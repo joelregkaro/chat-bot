@@ -92,6 +92,7 @@ export default function StickyChat({ onClose }: StickyChatProps) {
     null
   );
   const [showPaymentIframe, setShowPaymentIframe] = useState(false);
+  const [paymentWindow, setPaymentWindow] = useState<Window | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -140,76 +141,43 @@ export default function StickyChat({ onClose }: StickyChatProps) {
     if (paymentMessage) {
       const paymentLink = extractPaymentLink(paymentMessage.content);
       if (paymentLink) {
-        setShowPaymentIframe(true);
-        // Create iframe after state update
-        setTimeout(() => {
-          // Create modal container
-          const modalContainer = document.createElement("div");
-          modalContainer.style.position = "fixed";
-          modalContainer.style.top = "0";
-          modalContainer.style.left = "0";
-          modalContainer.style.width = "100%";
-          modalContainer.style.height = "100%";
-          modalContainer.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
-          modalContainer.style.display = "flex";
-          modalContainer.style.alignItems = "center";
-          modalContainer.style.justifyContent = "center";
-          modalContainer.style.zIndex = "1000";
+        // Open payment link in new tab
+        const newWindow = window.open(paymentLink, "_blank");
+        if (newWindow) {
+          setPaymentWindow(newWindow);
 
-          // Create iframe wrapper
-          const iframeWrapper = document.createElement("div");
-          iframeWrapper.style.position = "relative";
-          iframeWrapper.style.width = "90%";
-          iframeWrapper.style.maxWidth = "800px";
-          iframeWrapper.style.height = "80vh";
-          iframeWrapper.style.backgroundColor = "white";
-          iframeWrapper.style.borderRadius = "8px";
-          iframeWrapper.style.overflow = "hidden";
-          iframeWrapper.style.boxShadow = "0 4px 6px rgba(0, 0, 0, 0.1)";
+          // Check for payment completion every 2 seconds
+          const checkPaymentInterval = setInterval(() => {
+            try {
+              // Check if window is closed by user
+              if (newWindow.closed) {
+                clearInterval(checkPaymentInterval);
+                setPaymentWindow(null);
+                return;
+              }
 
-          // Create iframe
-          const iframe = document.createElement("iframe");
-          iframe.src = paymentLink;
-          iframe.style.width = "100%";
-          iframe.style.height = "100%";
-          iframe.style.border = "none";
-
-          // Add close button
-          const closeButton = document.createElement("button");
-          closeButton.innerHTML =
-            '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
-          closeButton.style.position = "absolute";
-          closeButton.style.top = "12px";
-          closeButton.style.right = "12px";
-          closeButton.style.padding = "8px";
-          closeButton.style.backgroundColor = "white";
-          closeButton.style.border = "none";
-          closeButton.style.borderRadius = "50%";
-          closeButton.style.cursor = "pointer";
-          closeButton.style.zIndex = "1001";
-          closeButton.style.boxShadow = "0 2px 4px rgba(0, 0, 0, 0.1)";
-          closeButton.onclick = () => {
-            document.body.removeChild(modalContainer);
-            setShowPaymentIframe(false);
-          };
-
-          // Add message listener for payment completion
-          window.addEventListener("message", function (event) {
-            if (event.data && event.data.type === "payment_completed") {
-              document.body.removeChild(modalContainer);
-              setShowPaymentIframe(false);
-              sendChatMessage(
-                "Payment completed successfully! We'll proceed with your registration."
-              );
+              // Listen for payment completion message
+              window.addEventListener("message", function (event) {
+                if (event.data && event.data.type === "payment_completed") {
+                  clearInterval(checkPaymentInterval);
+                  newWindow.close();
+                  setPaymentWindow(null);
+                  sendChatMessage(
+                    "Payment completed successfully! We'll proceed with your registration."
+                  );
+                }
+              });
+            } catch (error) {
+              // If we can't access the window (cross-origin), just clear the interval
+              clearInterval(checkPaymentInterval);
             }
-          });
+          }, 2000);
 
-          iframeWrapper.appendChild(iframe);
-          iframeWrapper.appendChild(closeButton);
-          modalContainer.appendChild(iframeWrapper);
-          document.body.appendChild(modalContainer);
-          setPaymentIframe(iframe);
-        }, 0);
+          // Cleanup interval when component unmounts
+          return () => clearInterval(checkPaymentInterval);
+        } else {
+          console.error("Could not open payment window");
+        }
       } else {
         console.error("No payment link found in the first message");
       }
