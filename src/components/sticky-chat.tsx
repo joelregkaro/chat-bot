@@ -111,24 +111,26 @@ export default function StickyChat({ onClose }: StickyChatProps) {
 
   // Function to format message with clickable links
   const formatMessage = (content: string) => {
-    const urlRegex = /(https:\/\/rzp\.io\/l\/[^\s)]+)/g;
-    return content.split(urlRegex).map((part, index) => {
-      if (part.match(urlRegex)) {
-        return (
-          <a
-            key={index}
-            href={part}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue hover:underline"
-          >
-            {part}
-          </a>
-        );
-      }
-      return part;
-    });
-  };
+  const urlRegex = /(https:\/\/rzp\.io\/l\/[^\s)]+)/g;
+
+  return content.split(urlRegex).map((part, index) => {
+    const isLink = /(https:\/\/rzp\.io\/l\/[^\s)]+)/.test(part);
+    return isLink ? (
+      <a
+        key={index}
+        href={part}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue hover:underline"
+      >
+        {part}
+      </a>
+    ) : (
+      <span key={index}>{part}</span> // Wrap all text parts in a <span>
+    );
+  });
+};
+
 
   // Handle payment button click
   const handlePaymentClick = () => {
