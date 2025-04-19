@@ -471,9 +471,9 @@ export default function StickyChat({ onClose }: StickyChatProps) {
                         : "bg-white text-darkgray border border-gray-200 rounded-tl-none"
                     }`}
                   >
-                    <span className="text-sm whitespace-pre-wrap">
+                    <div className="text-sm whitespace-pre-wrap">
   {formatMessage(message.content)}
-</span>
+</div>
 
                   </div>
                   <div className="flex items-center text-xs mt-1 text-gray-500">
