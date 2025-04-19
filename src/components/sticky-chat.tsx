@@ -88,6 +88,10 @@ export default function StickyChat({ onClose }: StickyChatProps) {
     useState<RegistrationData | null>(null);
   const [webhookError, setWebhookError] = useState<string | null>(null);
   const [isSendingData, setIsSendingData] = useState(false);
+  const [paymentIframe, setPaymentIframe] = useState<HTMLIFrameElement | null>(
+    null
+  );
+  const [showPaymentIframe, setShowPaymentIframe] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -97,95 +101,122 @@ export default function StickyChat({ onClose }: StickyChatProps) {
     scrollToBottom();
   }, [messages]);
 
-  // Handle payment link click - defined with useCallback for React Hook dependencies
-  const handlePaymentClick = useCallback(async () => {
-    // Find the payment link in the messages
+  // Function to extract payment link from message
+  const extractPaymentLink = (message: string): string | null => {
+    const urlRegex = /https:\/\/rzp\.io\/l\/[^\s)]+/;
+    const match = message.match(urlRegex);
+    return match ? match[0] : null;
+  };
+
+  // Function to format message with clickable links
+  const formatMessage = (content: string) => {
+    const urlRegex = /(https:\/\/rzp\.io\/l\/[^\s)]+)/g;
+    return content.split(urlRegex).map((part, index) => {
+      if (part.match(urlRegex)) {
+        return (
+          <a
+            key={index}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue hover:underline"
+          >
+            {part}
+          </a>
+        );
+      }
+      return part;
+    });
+  };
+
+  // Handle payment button click
+  const handlePaymentClick = () => {
+    // Find the first message with a payment link
     const paymentMessage = messages.find(
       (msg) =>
         msg.role === "assistant" && msg.content.includes("https://rzp.io/l/")
     );
 
     if (paymentMessage) {
-      // Extract the payment link using regex
-      const paymentLinkMatch = paymentMessage.content.match(
-        /https:\/\/rzp\.io\/l\/[^\s)]+/
-      );
-      const paymentLink = paymentLinkMatch ? paymentLinkMatch[0] : null;
-
+      const paymentLink = extractPaymentLink(paymentMessage.content);
       if (paymentLink) {
-        console.log(
-          "🔄 Payment button clicked, processing payment link:",
-          paymentLink
-        );
+        setShowPaymentIframe(true);
+        // Create iframe after state update
+        setTimeout(() => {
+          // Create modal container
+          const modalContainer = document.createElement("div");
+          modalContainer.style.position = "fixed";
+          modalContainer.style.top = "0";
+          modalContainer.style.left = "0";
+          modalContainer.style.width = "100%";
+          modalContainer.style.height = "100%";
+          modalContainer.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
+          modalContainer.style.display = "flex";
+          modalContainer.style.alignItems = "center";
+          modalContainer.style.justifyContent = "center";
+          modalContainer.style.zIndex = "1000";
 
-        // Create iframe container
-        const iframeContainer = document.createElement("div");
-        iframeContainer.style.position = "fixed";
-        iframeContainer.style.top = "0";
-        iframeContainer.style.left = "0";
-        iframeContainer.style.width = "100%";
-        iframeContainer.style.height = "100%";
-        iframeContainer.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
-        iframeContainer.style.zIndex = "1000";
-        iframeContainer.style.display = "flex";
-        iframeContainer.style.alignItems = "center";
-        iframeContainer.style.justifyContent = "center";
+          // Create iframe wrapper
+          const iframeWrapper = document.createElement("div");
+          iframeWrapper.style.position = "relative";
+          iframeWrapper.style.width = "90%";
+          iframeWrapper.style.maxWidth = "800px";
+          iframeWrapper.style.height = "80vh";
+          iframeWrapper.style.backgroundColor = "white";
+          iframeWrapper.style.borderRadius = "8px";
+          iframeWrapper.style.overflow = "hidden";
+          iframeWrapper.style.boxShadow = "0 4px 6px rgba(0, 0, 0, 0.1)";
 
-        // Create iframe
-        const iframe = document.createElement("iframe");
-        iframe.src = paymentLink;
-        iframe.style.width = "90%";
-        iframe.style.height = "90%";
-        iframe.style.maxWidth = "800px";
-        iframe.style.maxHeight = "600px";
-        iframe.style.border = "none";
-        iframe.style.borderRadius = "8px";
-        iframe.style.backgroundColor = "white";
+          // Create iframe
+          const iframe = document.createElement("iframe");
+          iframe.src = paymentLink;
+          iframe.style.width = "100%";
+          iframe.style.height = "100%";
+          iframe.style.border = "none";
 
-        // Create close button
-        const closeButton = document.createElement("button");
-        closeButton.innerHTML =
-          '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
-        closeButton.style.position = "absolute";
-        closeButton.style.top = "20px";
-        closeButton.style.right = "20px";
-        closeButton.style.padding = "8px";
-        closeButton.style.backgroundColor = "white";
-        closeButton.style.border = "none";
-        closeButton.style.borderRadius = "50%";
-        closeButton.style.cursor = "pointer";
-        closeButton.style.zIndex = "1001";
-        closeButton.onclick = () => {
-          document.body.removeChild(iframeContainer);
-        };
+          // Add close button
+          const closeButton = document.createElement("button");
+          closeButton.innerHTML =
+            '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+          closeButton.style.position = "absolute";
+          closeButton.style.top = "12px";
+          closeButton.style.right = "12px";
+          closeButton.style.padding = "8px";
+          closeButton.style.backgroundColor = "white";
+          closeButton.style.border = "none";
+          closeButton.style.borderRadius = "50%";
+          closeButton.style.cursor = "pointer";
+          closeButton.style.zIndex = "1001";
+          closeButton.style.boxShadow = "0 2px 4px rgba(0, 0, 0, 0.1)";
+          closeButton.onclick = () => {
+            document.body.removeChild(modalContainer);
+            setShowPaymentIframe(false);
+          };
 
-        // Add elements to DOM
-        iframeContainer.appendChild(iframe);
-        iframeContainer.appendChild(closeButton);
-        document.body.appendChild(iframeContainer);
+          // Add message listener for payment completion
+          window.addEventListener("message", function (event) {
+            if (event.data && event.data.type === "payment_completed") {
+              document.body.removeChild(modalContainer);
+              setShowPaymentIframe(false);
+              sendChatMessage(
+                "Payment completed successfully! We'll proceed with your registration."
+              );
+            }
+          });
 
-        // Listen for payment completion message from iframe
-        const handleMessage = (event: MessageEvent) => {
-          if (
-            event.data &&
-            typeof event.data === "object" &&
-            event.data.payment_status === "completed"
-          ) {
-            markPaymentCompleted();
-            sendChatMessage("Your payment has been successfully processed.");
-            document.body.removeChild(iframeContainer);
-            window.removeEventListener("message", handleMessage);
-          }
-        };
-
-        window.addEventListener("message", handleMessage);
+          iframeWrapper.appendChild(iframe);
+          iframeWrapper.appendChild(closeButton);
+          modalContainer.appendChild(iframeWrapper);
+          document.body.appendChild(modalContainer);
+          setPaymentIframe(iframe);
+        }, 0);
       } else {
-        console.error("❌ No payment link found in the message");
+        console.error("No payment link found in the first message");
       }
     } else {
-      console.error("❌ No payment message found");
+      console.error("No payment message found in the chat");
     }
-  }, [messages, markPaymentCompleted, sendChatMessage]);
+  };
 
   // Focus the textarea after each message is received
   useEffect(() => {
@@ -473,7 +504,7 @@ export default function StickyChat({ onClose }: StickyChatProps) {
                     }`}
                   >
                     <p className="text-sm whitespace-pre-wrap">
-                      {message.content}
+                      {formatMessage(message.content)}
                     </p>
                   </div>
                   <div className="flex items-center text-xs mt-1 text-gray-500">
@@ -485,7 +516,7 @@ export default function StickyChat({ onClose }: StickyChatProps) {
             </div>
           ))}
 
-          {/* Payment message - shown when payment link is received */}
+          {/* Payment button - shown when payment link is received */}
           {showPaymentPopup && (
             <div className="flex justify-start">
               <div className="flex max-w-[80%] flex-row">
