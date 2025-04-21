@@ -222,57 +222,55 @@ export default function StickyChat({ onClose }: StickyChatProps) {
           msg.content.includes("rzp.io/"))
     );
 
-    console.log("Found payment message:", paymentMessage ? "Yes" : "No");
-
-    if (paymentMessage) {
-      console.log("Message content:", paymentMessage.content);
-      const paymentLink = extractPaymentLink(paymentMessage.content);
-      console.log("Extracted payment link:", paymentLink);
-
-      if (paymentLink) {
-        console.log("Opening payment link in new tab:", paymentLink);
-        // Open payment link in new tab
-        const newWindow = window.open(paymentLink, "_blank");
-        if (newWindow) {
-          setPaymentWindow(newWindow);
-
-          // Check for payment completion every 2 seconds
-          const checkPaymentInterval = setInterval(() => {
-            try {
-              // Check if window is closed by user
-              if (newWindow.closed) {
-                clearInterval(checkPaymentInterval);
-                setPaymentWindow(null);
-                return;
-              }
-
-              // Listen for payment completion message
-              window.addEventListener("message", function (event) {
-                if (event.data && event.data.type === "payment_completed") {
-                  clearInterval(checkPaymentInterval);
-                  newWindow.close();
-                  setPaymentWindow(null);
-                  sendChatMessage(
-                    "Payment completed successfully! We'll proceed with your registration."
-                  );
-                }
-              });
-            } catch (error) {
-              // If we can't access the window (cross-origin), just clear the interval
-              clearInterval(checkPaymentInterval);
-            }
-          }, 2000);
-
-          // Cleanup interval when component unmounts
-          return () => clearInterval(checkPaymentInterval);
-        } else {
-          console.error("Could not open payment window");
-        }
-      } else {
-        console.error("No payment link found in the first message");
-      }
-    } else {
+    if (!paymentMessage) {
       console.error("No payment message found in the chat");
+      sendChatMessage("No payment link found. Please contact support.");
+      return;
+    }
+
+    const paymentLink = extractPaymentLink(paymentMessage.content);
+    if (!paymentLink) {
+      console.error("No payment link found in the message");
+      sendChatMessage("Invalid payment link. Please contact support.");
+      return;
+    }
+
+    // Open payment link in new tab
+    const newWindow = window.open(paymentLink, "_blank");
+    if (newWindow) {
+      setPaymentWindow(newWindow);
+
+      // Check for payment completion every 2 seconds
+      const checkPaymentInterval = setInterval(() => {
+        try {
+          // Check if window is closed by user
+          if (newWindow.closed) {
+            clearInterval(checkPaymentInterval);
+            setPaymentWindow(null);
+            return;
+          }
+
+          // Listen for payment completion message
+          window.addEventListener("message", function (event) {
+            if (event.data && event.data.type === "payment_completed") {
+              clearInterval(checkPaymentInterval);
+              newWindow.close();
+              setPaymentWindow(null);
+              sendChatMessage(
+                "Payment completed successfully! We'll proceed with your registration."
+              );
+            }
+          });
+        } catch (error) {
+          // If we can't access the window (cross-origin), just clear the interval
+          clearInterval(checkPaymentInterval);
+        }
+      }, 2000);
+
+      // Cleanup interval when component unmounts
+      return () => clearInterval(checkPaymentInterval);
+    } else {
+      console.error("Could not open payment window");
     }
   };
 
@@ -352,6 +350,18 @@ export default function StickyChat({ onClose }: StickyChatProps) {
           error: webhookError || "Invalid registration data",
         };
       }
+
+      // Get Razorpay key from environment variables with clear logging
+      const key = process.env.RAZORPAY_KEY_ID;
+      if (!key) {
+        console.error("❌ Razorpay key not found in environment variables");
+        throw new Error("Razorpay key not configured");
+      }
+      console.log(
+        `🔑 Using Razorpay key: ${key} [${
+          process.env.NODE_ENV === "production" ? "Production" : "Development"
+        }]`
+      );
 
       const response = await fetch(
         "https://flow.zoho.in/60012180367/flow/webhook/incoming?zapikey=1001.fa7a8e3f7c71979544a6f99cd3b5367e.764173d0054f4da1767f12ce415fa088&isdebug=false",
@@ -634,92 +644,31 @@ export default function StickyChat({ onClose }: StickyChatProps) {
         </div>
       </div>
 
-      {/* Quick action buttons */}
-      <div className="p-1.5 border-t border-gray-100 flex overflow-x-auto gap-2 bg-gray-50">
-        <button
-          onClick={() =>
-            sendChatMessage("Tell me about the registration process")
-          }
-          className={`px-3 py-1.5 text-xs rounded-full whitespace-nowrap transition-colors ${
-            isLoading || connectionStatus !== "connected"
-              ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-              : "bg-blue/10 text-blue hover:bg-blue/20"
-          }`}
-          disabled={isLoading || connectionStatus !== "connected"}
-        >
-          Registration Process
-        </button>
-        <button
-          onClick={() => sendChatMessage("What documents are required?")}
-          className={`px-3 py-1.5 text-xs rounded-full whitespace-nowrap transition-colors ${
-            isLoading || connectionStatus !== "connected"
-              ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-              : "bg-blue/10 text-blue hover:bg-blue/20"
-          }`}
-          disabled={isLoading || connectionStatus !== "connected"}
-        >
-          Documents Required
-        </button>
-        <button
-          onClick={() => sendChatMessage("What are your pricing plans?")}
-          className={`px-3 py-1.5 text-xs rounded-full whitespace-nowrap transition-colors ${
-            isLoading || connectionStatus !== "connected"
-              ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-              : "bg-blue/10 text-blue hover:bg-blue/20"
-          }`}
-          disabled={isLoading || connectionStatus !== "connected"}
-        >
-          Pricing Plans
-        </button>
-        <button
-          onClick={() => sendChatMessage("How long does the process take?")}
-          className={`px-3 py-1.5 text-xs rounded-full whitespace-nowrap transition-colors ${
-            isLoading || connectionStatus !== "connected"
-              ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-              : "bg-blue/10 text-blue hover:bg-blue/20"
-          }`}
-          disabled={isLoading || connectionStatus !== "connected"}
-        >
-          Processing Time
-        </button>
-      </div>
-
-      {/* Chat input */}
-      <form
-        onSubmit={handleSendMessage}
-        className="p-3 border-t border-gray-100 bg-white"
-      >
-        <div className="flex gap-2">
+      {/* Message input area */}
+      <div className="p-3 border-t border-gray-100">
+        <form onSubmit={handleSendMessage} className="flex space-x-2">
           <Textarea
             ref={textareaRef}
             value={message}
-            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-              setMessage(e.target.value)
-            }
+            onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type your message here..."
-            className="flex-1 focus-visible:ring-blue min-h-[60px] resize-y max-h-[150px]"
-            disabled={connectionStatus !== "connected" || isLoading}
-            autoFocus
+            placeholder="Type your message..."
+            className="flex-1 min-h-[40px] max-h-32 resize-none focus:border-blue focus:ring-1 focus:ring-blue"
+            disabled={isLoading}
           />
           <Button
             type="submit"
-            className="bg-blue hover:bg-blue/90 text-white self-end h-[60px]"
-            disabled={
-              !message.trim() || connectionStatus !== "connected" || isLoading
-            }
+            className="bg-blue hover:bg-blue/90"
+            disabled={!message.trim() || isLoading}
           >
-            <Send className="h-4 w-4" />
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
           </Button>
-        </div>
-        <p className="text-xs text-gray-500 mt-2">
-          {connectionStatus === "connected"
-            ? "Connected to AI assistant • Responses typically within 5 seconds"
-            : connectionStatus === "connecting"
-            ? "Connecting to AI assistant..."
-            : "Disconnected - Unable to reach the assistant"}
-        </p>
-      </form>
+        </form>
+      </div>
     </div>
   );
 }
