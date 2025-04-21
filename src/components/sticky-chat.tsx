@@ -108,6 +108,11 @@ export default function StickyChat({ onClose }: StickyChatProps) {
     const markdownRegex = /\[([^\]]+)\]\((https:\/\/rzp\.io\/[^\s)]+)\)/;
     // Match plain URLs like https://rzp.io/abc123
     const urlRegex = /https:\/\/rzp\.io\/[^\s)]+/;
+    // Match URLs in text like "Please use this payment link: https://rzp.io/abc123"
+    const textUrlRegex =
+      /(?:payment link|link)[:：]?\s*(https:\/\/rzp\.io\/[^\s)]+)/i;
+    // Match URLs with @ symbol like @https://rzp.io/abc123
+    const atUrlRegex = /@(https:\/\/rzp\.io\/[^\s)]+)/i;
 
     console.log("Attempting to extract payment link from:", message);
 
@@ -117,9 +122,31 @@ export default function StickyChat({ onClose }: StickyChatProps) {
       return markdownMatch[2]; // Return the URL part
     }
 
-    // Then try to extract plain URL
+    // Then try to extract from text with payment link mention
+    const textUrlMatch = message.match(textUrlRegex);
+    if (textUrlMatch) {
+      return textUrlMatch[1].replace(/\)$/, "");
+    }
+
+    // Try to extract URL with @ symbol
+    const atUrlMatch = message.match(atUrlRegex);
+    if (atUrlMatch) {
+      return atUrlMatch[1].replace(/\)$/, "");
+    }
+
+    // Finally try to extract plain URL
     const urlMatch = message.match(urlRegex);
-    return urlMatch ? urlMatch[0] : null;
+    if (urlMatch) {
+      return urlMatch[0].replace(/\)$/, "");
+    }
+
+    return null;
+  };
+
+  // Function to clean payment link
+  const cleanPaymentLink = (link: string): string => {
+    // Remove any trailing parentheses and whitespace
+    return link.replace(/\)$/, "").trim();
   };
 
   // Function to format message with clickable links
@@ -235,42 +262,57 @@ export default function StickyChat({ onClose }: StickyChatProps) {
       return;
     }
 
-    // Open payment link in new tab
-    const newWindow = window.open(paymentLink, "_blank");
-    if (newWindow) {
-      setPaymentWindow(newWindow);
+    // Clean the payment link
+    const cleanedLink = cleanPaymentLink(paymentLink);
+    console.log("Opening payment link:", cleanedLink);
 
-      // Check for payment completion every 2 seconds
-      const checkPaymentInterval = setInterval(() => {
-        try {
-          // Check if window is closed by user
-          if (newWindow.closed) {
-            clearInterval(checkPaymentInterval);
-            setPaymentWindow(null);
-            return;
-          }
+    try {
+      // Open payment link in new tab
+      const newWindow = window.open(cleanedLink, "_blank");
+      if (newWindow) {
+        setPaymentWindow(newWindow);
 
-          // Listen for payment completion message
-          window.addEventListener("message", function (event) {
-            if (event.data && event.data.type === "payment_completed") {
+        // Check for payment completion every 2 seconds
+        const checkPaymentInterval = setInterval(() => {
+          try {
+            // Check if window is closed by user
+            if (newWindow.closed) {
               clearInterval(checkPaymentInterval);
-              newWindow.close();
               setPaymentWindow(null);
-              sendChatMessage(
-                "Payment completed successfully! We'll proceed with your registration."
-              );
+              return;
             }
-          });
-        } catch (error) {
-          // If we can't access the window (cross-origin), just clear the interval
-          clearInterval(checkPaymentInterval);
-        }
-      }, 2000);
 
-      // Cleanup interval when component unmounts
-      return () => clearInterval(checkPaymentInterval);
-    } else {
-      console.error("Could not open payment window");
+            // Listen for payment completion message
+            window.addEventListener("message", function (event) {
+              if (event.data && event.data.type === "payment_completed") {
+                clearInterval(checkPaymentInterval);
+                newWindow.close();
+                setPaymentWindow(null);
+                sendChatMessage(
+                  "Payment completed successfully! We'll proceed with your registration."
+                );
+              }
+            });
+          } catch (error) {
+            console.error("Error checking payment window:", error);
+            // If we can't access the window (cross-origin), just clear the interval
+            clearInterval(checkPaymentInterval);
+          }
+        }, 2000);
+
+        // Cleanup interval when component unmounts
+        return () => clearInterval(checkPaymentInterval);
+      } else {
+        console.error("Could not open payment window");
+        sendChatMessage(
+          "Could not open payment window. Please try again or contact support."
+        );
+      }
+    } catch (error) {
+      console.error("Error opening payment link:", error);
+      sendChatMessage(
+        "An error occurred while opening the payment link. Please try again or contact support."
+      );
     }
   };
 
@@ -585,7 +627,7 @@ export default function StickyChat({ onClose }: StickyChatProps) {
           ))}
 
           {/* Payment button - shown when payment link is received */}
-          {showPaymentPopup && (
+          {showPaymentPopup && paymentLink && (
             <div className="flex justify-start">
               <div className="flex max-w-[80%] flex-row">
                 <div className="flex items-center justify-center h-8 w-8 rounded-full flex-shrink-0 bg-blue mr-2">
@@ -598,18 +640,26 @@ export default function StickyChat({ onClose }: StickyChatProps) {
                 <div>
                   <div className="p-3 rounded-lg bg-white text-darkgray border border-gray-200 rounded-tl-none">
                     <div className="flex flex-col gap-3">
-                      <h3 className="text-lg font-medium">Complete Payment</h3>
                       <p className="text-gray-700">
-                        Click the button below to securely complete your payment
-                        for company registration:
+                        Please click the button below to complete your payment:
                       </p>
-                      <button
-                        onClick={handlePaymentClick}
-                        className="w-full bg-blue text-white py-3 rounded-lg flex items-center justify-center space-x-2 hover:bg-blue/90 transition"
-                      >
-                        <CreditCard className="h-5 w-5" />
-                        <span>Pay Now</span>
-                      </button>
+                      <div className="flex flex-col gap-2">
+                        {/* <a
+                          href={paymentLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue hover:underline break-all"
+                        >
+                          {paymentLink}
+                        </a> */}
+                        <button
+                          onClick={handlePaymentClick}
+                          className="w-full bg-blue text-white py-3 rounded-lg flex items-center justify-center space-x-2 hover:bg-blue/90 transition"
+                        >
+                          <CreditCard className="h-5 w-5" />
+                          <span>Pay Now</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
