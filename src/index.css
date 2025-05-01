@@ -229,3 +229,12 @@ body {
 html {
   scroll-behavior: smooth;
 }
+
+
+/* adjusted code */
+@layer utilities {
+  .text-stroke-white {
+    -webkit-text-stroke: 1px white;
+    color: #1B3654;
+  }
+}
