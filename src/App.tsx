@@ -12,11 +12,13 @@ import RegistrationProcess from "./components/registration-process";
 import StickyChat from "./components/sticky-chat";
 import Testimonials from "./components/testimonials";
 import WhyChooseUs from "./components/why-choose-us";
+import NewRegistrationForm from "./components/NewRegistrationForm"
 import { useEffect, useRef, useState } from "react";
 import { MessageSquare, X } from "lucide-react";
 import { ChatProvider } from "./contexts/ChatContext";
 // Test imports removed
 import Clarity from "@microsoft/clarity";
+import FormWrapper from "./components/FormWrapper";
 
 const App = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -135,6 +137,9 @@ const App = () => {
                 <Hero />
               </div>
               <div className="bg-gradient-to-br from-white via-blue-50/20 via-orange-50/20 to-purple-50/20">
+                <div id="registrationform" className="my-3 p-4 fade-in">
+                  <FormWrapper />
+                </div>
                 <div id="testimonials" className="fade-in">
                   <Testimonials />
                 </div>
